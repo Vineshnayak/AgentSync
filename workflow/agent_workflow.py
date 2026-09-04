@@ -1,0 +1,105 @@
+import time
+from langgraph.graph import StateGraph, END
+from workflow.state import AgentState
+from agents.planner_agent import run_planner
+from agents.research_agent import run_research
+from agents.analysis_agent import run_analysis
+from agents.decision_agent import run_decision
+from utils.logging_config import setup_logger, global_metrics
+from memory.memory_manager import memory_manager
+
+logger = setup_logger("agent_workflow")
+
+def evaluate_risk(state: AgentState) -> AgentState:
+    """Evaluates the risk of the analysis."""
+    analysis_text = state.get("analysis", "").lower()
+    
+    # Simple keyword-based mock evaluation for prototype
+    if "high risk" in analysis_text:
+        state["workflow_status"] = "High Risk - Human Review Required"
+    elif "medium risk" in analysis_text:
+        state["workflow_status"] = "Medium Risk"
+    else:
+        state["workflow_status"] = "Low Risk"
+        
+    logger.info(f"Risk Evaluation complete: {state['workflow_status']}")
+    return state
+
+def route_after_risk(state: AgentState):
+    status = state.get("workflow_status", "")
+    if "High Risk" in status:
+        return END  # Or route to human review
+    elif "Medium Risk" in status:
+        return "research" # Additional research
+    else:
+        return "decision"
+
+def build_workflow():
+    workflow = StateGraph(AgentState)
+    
+    # Add nodes
+    workflow.add_node("planner", run_planner)
+    workflow.add_node("research", run_research)
+    workflow.add_node("analysis", run_analysis)
+    workflow.add_node("risk_evaluation", evaluate_risk)
+    workflow.add_node("decision", run_decision)
+    
+    # Define edges
+    workflow.set_entry_point("planner")
+    workflow.add_edge("planner", "research")
+    workflow.add_edge("research", "analysis")
+    workflow.add_edge("analysis", "risk_evaluation")
+    
+    workflow.add_conditional_edges(
+        "risk_evaluation",
+        route_after_risk,
+        {
+            END: END,
+            "research": "research",
+            "decision": "decision"
+        }
+    )
+    workflow.add_edge("decision", END)
+    
+    return workflow.compile()
+
+def run_agent_workflow(user_request: str) -> AgentState:
+    logger.info(f"Starting workflow for request: {user_request}")
+    
+    start_time = time.time()
+    global_metrics.reset()
+    
+    initial_state = AgentState(
+        user_request=user_request,
+        plan="",
+        research_results="",
+        analysis="",
+        decision="",
+        workflow_status="Started",
+        errors=[],
+        execution_metadata={}
+    )
+    
+    app = build_workflow()
+    
+    try:
+        # LangGraph invoke
+        final_state = app.invoke(initial_state)
+    except Exception as e:
+        logger.error(f"Workflow execution failed: {e}")
+        initial_state["errors"].append(str(e))
+        initial_state["workflow_status"] = "Error"
+        final_state = initial_state
+        
+    duration = time.time() - start_time
+    final_state["execution_metadata"] = {
+        "duration_seconds": round(duration, 2),
+        "llm_calls": global_metrics.llm_calls,
+        "tool_calls": global_metrics.tool_calls
+    }
+    
+    # Save to memory
+    memory_manager.save_workflow(final_state)
+    
+    logger.info(f"Workflow completed in {duration:.2f} seconds.")
+    return final_state
