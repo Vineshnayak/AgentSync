@@ -6,7 +6,7 @@ load_dotenv()
 
 class Settings:
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-    DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "qwen/qwen3.8-27b")
+    DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "llama3-8b-8192")
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///agentsync_memory.db")
     
     @classmethod

@@ -6,6 +6,7 @@ from tools.service_health_tool import check_health
 from tools.incident_history_tool import search_incident_history
 from tools.knowledge_base_tool import search_runbooks
 from tools.incident_action_tool import manage_incident
+from tools.external_api_tool import check_external_service_status
 
 MOCK_JSON_DATA = """
 {
@@ -62,3 +63,27 @@ def test_incident_action_tool_success():
 def test_incident_action_tool_invalid_action():
     result = manage_incident.invoke({"action": "delete", "details": "API is down"})
     assert "Invalid action" in result
+
+@patch('tools.external_api_tool.requests.get')
+def test_external_api_tool_success(mock_get):
+    mock_response = patch('requests.models.Response').start()
+    mock_response.status_code = 200
+    mock_response.elapsed.total_seconds.return_value = 0.15
+    mock_get.return_value = mock_response
+    
+    result = check_external_service_status.invoke({"service_url": "https://example.com"})
+    assert "Status code: 200" in result
+    assert "Latency:" in result
+    patch.stopall()
+
+@patch('tools.external_api_tool.requests.get')
+def test_external_api_tool_timeout(mock_get):
+    from requests.exceptions import Timeout
+    mock_get.side_effect = Timeout("Timeout")
+    
+    result = check_external_service_status.invoke({"service_url": "https://example.com"})
+    assert "timed out" in result
+
+def test_external_api_tool_invalid_url():
+    result = check_external_service_status.invoke({"service_url": "ftp://example.com"})
+    assert "Invalid URL" in result

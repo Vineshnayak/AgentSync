@@ -10,6 +10,7 @@ from tools.service_health_tool import check_health
 from tools.incident_history_tool import search_incident_history
 from tools.knowledge_base_tool import search_runbooks
 from tools.incident_action_tool import manage_incident
+from tools.external_api_tool import check_external_service_status
 
 logger = setup_logger("investigation_agent")
 
@@ -23,9 +24,9 @@ def run_investigation(state: AgentState) -> AgentState:
     try:
         llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.DEFAULT_MODEL)
         
-        tools = [analyze_logs, check_health, search_incident_history, search_runbooks, manage_incident]
+        tools = [analyze_logs, check_health, search_incident_history, search_runbooks, manage_incident, check_external_service_status]
         
-        system_msg = "You are the Investigation Agent for IT Incident Resolution. Intelligently select and use the available tools to investigate the incident based on the plan. Gather logs, health status, history, and runbooks. Do not provide final analysis, only gather evidence and data."
+        system_msg = "You are the Investigation Agent for IT Incident Resolution. Intelligently select and use the available tools to investigate the incident based on the plan. Gather logs, health status, history, and runbooks. You can also ping external services using check_external_service_status. Do not provide final analysis, only gather evidence and data."
         
         agent = create_react_agent(llm, tools, prompt=system_msg)
         
@@ -39,6 +40,10 @@ def run_investigation(state: AgentState) -> AgentState:
         ai_msg_count = sum(1 for m in result["messages"] if m.type == "ai")
         for _ in range(ai_msg_count):
             global_metrics.increment_llm()
+            
+        tool_msg_count = sum(1 for m in result["messages"] if m.type == "tool")
+        for _ in range(tool_msg_count):
+            global_metrics.increment_tool()
             
         state["investigation_results"] = final_message
         state["workflow_status"] = "Investigated"

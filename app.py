@@ -5,8 +5,8 @@ from workflow.agent_workflow import run_agent_workflow
 
 st.set_page_config(page_title="AgentSync", page_icon="🤖", layout="wide")
 
-st.title("🤖 AgentSync Dashboard")
-st.markdown("An AI Agent Coordination & Decision Engine")
+st.title("AgentSync")
+st.markdown("An AI Agent Coordination & Decision Engine for IT Incident Resolution")
 
 # Check config
 try:
