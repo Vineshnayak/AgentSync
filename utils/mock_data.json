@@ -1,0 +1,42 @@
+{
+    "logs": {
+        "Payment API": [
+            {"timestamp": "2026-09-18T10:00:00Z", "level": "ERROR", "message": "500 Internal Server Error - Connection timeout to database"},
+            {"timestamp": "2026-09-18T10:05:00Z", "level": "ERROR", "message": "500 Internal Server Error - Connection timeout to database"}
+        ],
+        "Auth Service": [
+            {"timestamp": "2026-09-18T09:30:00Z", "level": "WARNING", "message": "High latency detected"},
+            {"timestamp": "2026-09-18T09:35:00Z", "level": "INFO", "message": "Token refreshed"}
+        ]
+    },
+    "health": {
+        "Payment API": {"status": "Down", "metrics": {"latency_ms": 5000, "error_rate": 0.8}},
+        "Auth Service": {"status": "Degraded", "metrics": {"latency_ms": 1200, "error_rate": 0.05}},
+        "Web Frontend": {"status": "Healthy", "metrics": {"latency_ms": 150, "error_rate": 0.001}}
+    },
+    "incidents": [
+        {
+            "id": "INC-001",
+            "service": "Payment API",
+            "description": "Payment failures due to database connection pool exhaustion",
+            "resolution": "Increased max connections in database config"
+        },
+        {
+            "id": "INC-002",
+            "service": "Auth Service",
+            "description": "Login latency spike",
+            "resolution": "Scaled up Auth pods"
+        }
+    ],
+    "runbooks": {
+        "Payment API": [
+            "1. Check database connection pool metrics",
+            "2. Restart Payment API pods if memory leak suspected",
+            "3. If DB overloaded, apply rate limiting at API gateway"
+        ],
+        "Auth Service": [
+            "1. Check Redis cache hit rate",
+            "2. Verify JWT signing keys validity"
+        ]
+    }
+}

@@ -2,7 +2,7 @@ import time
 from langgraph.graph import StateGraph, END
 from workflow.state import AgentState
 from agents.planner_agent import run_planner
-from agents.research_agent import run_research
+from agents.investigation_agent import run_investigation
 from agents.analysis_agent import run_analysis
 from agents.decision_agent import run_decision
 from utils.logging_config import setup_logger, global_metrics
@@ -30,7 +30,7 @@ def route_after_risk(state: AgentState):
     if "High Risk" in status:
         return END  # Or route to human review
     elif "Medium Risk" in status:
-        return "research" # Additional research
+        return "investigation" # Additional investigation
     else:
         return "decision"
 
@@ -39,15 +39,15 @@ def build_workflow():
     
     # Add nodes
     workflow.add_node("planner", run_planner)
-    workflow.add_node("research", run_research)
+    workflow.add_node("investigation", run_investigation)
     workflow.add_node("analysis", run_analysis)
     workflow.add_node("risk_evaluation", evaluate_risk)
     workflow.add_node("decision", run_decision)
     
     # Define edges
     workflow.set_entry_point("planner")
-    workflow.add_edge("planner", "research")
-    workflow.add_edge("research", "analysis")
+    workflow.add_edge("planner", "investigation")
+    workflow.add_edge("investigation", "analysis")
     workflow.add_edge("analysis", "risk_evaluation")
     
     workflow.add_conditional_edges(
@@ -55,7 +55,7 @@ def build_workflow():
         route_after_risk,
         {
             END: END,
-            "research": "research",
+            "investigation": "investigation",
             "decision": "decision"
         }
     )
@@ -72,7 +72,7 @@ def run_agent_workflow(user_request: str) -> AgentState:
     initial_state = AgentState(
         user_request=user_request,
         plan="",
-        research_results="",
+        investigation_results="",
         analysis="",
         decision="",
         workflow_status="Started",

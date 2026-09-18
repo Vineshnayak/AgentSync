@@ -16,10 +16,10 @@ def run_decision(state: AgentState) -> AgentState:
     try:
         llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.DEFAULT_MODEL)
         
-        system_msg = SystemMessage(content="""You are the Decision Agent.
-Evaluate the analysis provided and formulate a final recommendation/decision.
-Compare available options and explain your reasoning clearly.
-Provide a complete, final user-facing response.
+        system_msg = SystemMessage(content="""You are the Decision Agent for an IT Incident Resolution Engine.
+Evaluate the root cause analysis provided and formulate a final mitigation and resolution strategy.
+Determine if an incident ticket needs to be created or escalated, and outline the exact actions to take.
+Provide a complete, final user-facing response with clear next steps.
 """)
         human_msg = HumanMessage(content=f"User Request: {state['user_request']}\nAnalysis: {state['analysis']}")
         

@@ -19,11 +19,11 @@ st.sidebar.header("Configuration")
 st.sidebar.info(f"Model: {settings.DEFAULT_MODEL}")
 st.sidebar.info(f"Database: {settings.DATABASE_URL}")
 
-user_request = st.text_area("Business Request", height=100, placeholder="Enter a business problem for the agents to solve...")
+user_request = st.text_area("Incident Request", height=100, placeholder="Enter an IT incident description (e.g., 'Payment API is returning 500 errors')...")
 
 if st.button("Run AgentSync", type="primary"):
     if not user_request.strip():
-        st.warning("Please enter a business request.")
+        st.warning("Please enter an incident request.")
     else:
         with st.spinner("Agents are coordinating..."):
             
@@ -48,15 +48,15 @@ if st.button("Run AgentSync", type="primary"):
             st.divider()
             
             # Display workflow results
-            tabs = st.tabs(["Planner", "Research", "Analysis", "Decision"])
+            tabs = st.tabs(["Planner", "Investigation", "Analysis", "Decision"])
             
             with tabs[0]:
                 st.subheader("Plan")
                 st.write(final_state.get("plan", "No plan generated."))
                 
             with tabs[1]:
-                st.subheader("Research Results")
-                st.write(final_state.get("research_results", "No research data."))
+                st.subheader("Investigation Results")
+                st.write(final_state.get("investigation_results", "No investigation data."))
                 
             with tabs[2]:
                 st.subheader("Analysis")

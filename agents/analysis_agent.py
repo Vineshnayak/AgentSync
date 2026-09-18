@@ -16,12 +16,12 @@ def run_analysis(state: AgentState) -> AgentState:
     try:
         llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.DEFAULT_MODEL)
         
-        system_msg = SystemMessage(content="""You are the Analysis Agent.
-Your job is to analyze the information produced by the Research Agent.
-Identify patterns, risks, factors, and key findings. Produce structured analysis.
-Do not make the final decision; leave that for the Decision Agent.
+        system_msg = SystemMessage(content="""You are the Analysis Agent for an IT Incident Resolution Engine.
+Your job is to analyze the information produced by the Investigation Agent.
+Identify the root cause, severity, impact, and key findings of the incident. Produce structured analysis.
+Do not make the final resolution decision or execute actions; leave that for the Decision Agent.
 """)
-        human_msg = HumanMessage(content=f"User Request: {state['user_request']}\nResearch Data: {state['research_results']}")
+        human_msg = HumanMessage(content=f"User Request: {state['user_request']}\nInvestigation Data: {state.get('investigation_results', state.get('research_results'))}")
         
         logger.info("Calling Groq API for analysis.")
         response = llm.invoke([system_msg, human_msg])

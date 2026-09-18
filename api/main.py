@@ -21,7 +21,7 @@ class WorkflowResponse(BaseModel):
     job_id: str
     status: str
     plan: str = ""
-    research_results: str = ""
+    investigation_results: str = ""
     analysis: str = ""
     decision: str = ""
     execution_metrics: Dict[str, Any] = {}
@@ -49,7 +49,7 @@ async def run_workflow(req: WorkflowRequest):
             job_id=job_id,
             status=final_state.get("workflow_status", "Completed"),
             plan=final_state.get("plan", ""),
-            research_results=final_state.get("research_results", ""),
+            investigation_results=final_state.get("investigation_results", ""),
             analysis=final_state.get("analysis", ""),
             decision=final_state.get("decision", ""),
             execution_metrics=final_state.get("execution_metadata", {}),
@@ -75,9 +75,9 @@ async def get_workflow_status(job_id: str):
 async def list_agents():
     return {
         "agents": [
-            {"id": "planner", "description": "Breaks down requests into tasks"},
-            {"id": "research", "description": "Gathers required information using tools"},
-            {"id": "analysis", "description": "Identifies patterns, risks, and factors"},
+            {"id": "planner", "description": "Breaks down incident requests into a structured plan"},
+            {"id": "investigation", "description": "Gathers evidence using enterprise tools"},
+            {"id": "analysis", "description": "Performs root cause analysis and identifies risks"},
             {"id": "decision", "description": "Formulates final recommendations"}
         ]
     }
