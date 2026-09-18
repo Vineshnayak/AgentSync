@@ -6,7 +6,7 @@ load_dotenv()
 
 class Settings:
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-    DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "llama3-8b-8192")
+    DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "openai/gpt-oss-20b")
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///agentsync_memory.db")
     
     @classmethod
