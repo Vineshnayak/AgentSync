@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, List
 from workflow.agent_workflow import run_agent_workflow
@@ -10,6 +11,16 @@ app = FastAPI(
     description="API layer for AgentSync Coordination & Decision Engine",
     version="1.0.0"
 )
+
+# Add CORS middleware to allow the frontend to communicate with the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
 
 # Mock in-memory state store for status endpoints
 workflow_jobs: Dict[str, Any] = {}
