@@ -1,19 +1,11 @@
-import json
+import sqlite3
 import os
 from langchain_core.tools import tool
 from utils.logging_config import setup_logger
 
 logger = setup_logger("incident_history_tool")
 
-MOCK_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "utils", "mock_data.json")
-
-def load_mock_data():
-    try:
-        with open(MOCK_DATA_PATH, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Failed to load mock data: {e}")
-        return {}
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "enterprise_mock.db")
 
 @tool
 def search_incident_history(query: str) -> str:
@@ -30,25 +22,29 @@ def search_incident_history(query: str) -> str:
     query = query.lower()
     
     try:
-        data = load_mock_data()
-        incidents = data.get("incidents", [])
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
         
-        matches = []
-        for inc in incidents:
-            if query in inc.get("service", "").lower() or query in inc.get("description", "").lower():
-                matches.append(inc)
-                
+        search_pattern = f"%{query}%"
+        cursor.execute(
+            "SELECT incident_id, service, description, resolution FROM historical_incidents WHERE LOWER(service) LIKE ? OR LOWER(description) LIKE ?",
+            (search_pattern, search_pattern)
+        )
+        matches = cursor.fetchall()
+        
         if not matches:
+            conn.close()
             return f"No historical incidents found matching: {query}"
             
         result = f"Found {len(matches)} historical incident(s) matching '{query}':\n\n"
-        for inc in matches:
-            result += f"ID: {inc.get('id')}\n"
-            result += f"Service: {inc.get('service')}\n"
-            result += f"Description: {inc.get('description')}\n"
-            result += f"Resolution: {inc.get('resolution')}\n"
+        for incident_id, service, description, resolution in matches:
+            result += f"ID: {incident_id}\n"
+            result += f"Service: {service}\n"
+            result += f"Description: {description}\n"
+            result += f"Resolution: {resolution}\n"
             result += "-" * 20 + "\n"
             
+        conn.close()
         return result
         
     except Exception as e:

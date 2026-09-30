@@ -1,19 +1,11 @@
-import json
+import sqlite3
 import os
 from langchain_core.tools import tool
 from utils.logging_config import setup_logger
 
 logger = setup_logger("log_analyzer_tool")
 
-MOCK_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "utils", "mock_data.json")
-
-def load_mock_data():
-    try:
-        with open(MOCK_DATA_PATH, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Failed to load mock data: {e}")
-        return {}
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "enterprise_mock.db")
 
 @tool
 def analyze_logs(service: str, time_range: str = "last 24 hours") -> str:
@@ -30,21 +22,23 @@ def analyze_logs(service: str, time_range: str = "last 24 hours") -> str:
     logger.info(f"Analyzing logs for service: {service}, time_range: {time_range}")
     
     try:
-        data = load_mock_data()
-        logs_data = data.get("logs", {})
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
         
-        if service not in logs_data:
-            return f"No logs found for service: {service}. Available services: {list(logs_data.keys())}"
-        
-        logs = logs_data[service]
+        cursor.execute("SELECT timestamp, level, message FROM service_logs WHERE service = ?", (service,))
+        logs = cursor.fetchall()
         
         if not logs:
-            return f"No recent logs for {service}."
+            cursor.execute("SELECT DISTINCT service FROM service_logs")
+            available = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            return f"No logs found for service: {service}. Available services: {available}"
             
         result = f"Logs for {service} ({time_range}):\n"
-        for log in logs:
-            result += f"[{log['timestamp']}] {log['level']}: {log['message']}\n"
+        for timestamp, level, message in logs:
+            result += f"[{timestamp}] {level}: {message}\n"
             
+        conn.close()
         return result
         
     except Exception as e:

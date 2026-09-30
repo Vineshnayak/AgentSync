@@ -1,19 +1,11 @@
-import json
+import sqlite3
 import os
 from langchain_core.tools import tool
 from utils.logging_config import setup_logger
 
 logger = setup_logger("knowledge_base_tool")
 
-MOCK_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "utils", "mock_data.json")
-
-def load_mock_data():
-    try:
-        with open(MOCK_DATA_PATH, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Failed to load mock data: {e}")
-        return {}
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "enterprise_mock.db")
 
 @tool
 def search_runbooks(query: str) -> str:
@@ -30,24 +22,37 @@ def search_runbooks(query: str) -> str:
     query = query.lower()
     
     try:
-        data = load_mock_data()
-        runbooks = data.get("runbooks", {})
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
         
-        matches = []
-        for service, steps in runbooks.items():
-            if query in service.lower():
-                matches.append((service, steps))
-                
-        if not matches:
-            return f"No runbooks found matching: {query}. Available runbooks for: {list(runbooks.keys())}"
+        search_pattern = f"%{query}%"
+        cursor.execute(
+            "SELECT service, step_description FROM service_runbooks WHERE LOWER(service) LIKE ? ORDER BY service, step_number",
+            (search_pattern,)
+        )
+        rows = cursor.fetchall()
+        
+        if not rows:
+            cursor.execute("SELECT DISTINCT service FROM service_runbooks")
+            available = [r[0] for r in cursor.fetchall()]
+            conn.close()
+            return f"No runbooks found matching: {query}. Available runbooks for: {available}"
+            
+        # Group by service
+        runbooks = {}
+        for service, step in rows:
+            if service not in runbooks:
+                runbooks[service] = []
+            runbooks[service].append(step)
             
         result = ""
-        for service, steps in matches:
+        for service, steps in runbooks.items():
             result += f"Runbook for {service}:\n"
             for step in steps:
                 result += f"{step}\n"
             result += "\n"
             
+        conn.close()
         return result
         
     except Exception as e:

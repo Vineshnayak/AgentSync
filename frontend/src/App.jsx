@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Activity, Play, CheckCircle, AlertTriangle, Clock, Server, TerminalSquare, RefreshCw, Layers } from 'lucide-react';
 import './App.css';
 
@@ -14,12 +16,12 @@ function App() {
 
   const runWorkflow = async () => {
     if (!requestText.trim()) return;
-    
+
     setLoading(true);
     setResult(null);
     setJobId(null);
     setActiveTab("plan");
-    
+
     try {
       const res = await axios.post(`${API_BASE}/workflow/run`, {
         request_text: requestText
@@ -42,7 +44,7 @@ function App() {
     let cls = "status-running";
     if (status.includes("Complete") || status.includes("Low Risk")) cls = "status-completed";
     if (status.includes("Error") || status.includes("High Risk")) cls = "status-error";
-    
+
     return <div className={`status-badge ${cls}`}>{status}</div>;
   };
 
@@ -51,8 +53,8 @@ function App() {
       <header className="header">
         <Layers size={40} className="header-icon" />
         <div>
-          <h1>AgentSync Orchestration Engine</h1>
-          <p>Enterprise multi-agent IT incident resolution platform</p>
+          <h1>AgentSync</h1>
+          <p>Multi-agent IT incident resolution platform</p>
         </div>
         {result && getStatusBadge(result.status)}
       </header>
@@ -67,8 +69,8 @@ function App() {
           value={requestText}
           onChange={(e) => setRequestText(e.target.value)}
         />
-        <button 
-          className="btn-primary" 
+        <button
+          className="btn-primary"
           onClick={runWorkflow}
           disabled={loading || !requestText.trim()}
         >
@@ -87,29 +89,29 @@ function App() {
 
       {result && (
         <div className="glass-panel results-grid">
-          
+
           <div className="metrics-row">
             <div className="metric-card">
-              <Clock className="header-icon" size={24} style={{marginBottom: "0.5rem"}} />
+              <Clock className="header-icon" size={24} style={{ marginBottom: "0.5rem" }} />
               <div className="metric-value">{result.execution_metrics?.duration_seconds || 0}s</div>
               <div className="metric-label">Execution Time</div>
             </div>
             <div className="metric-card">
-              <Server className="header-icon" size={24} style={{marginBottom: "0.5rem"}} />
+              <Server className="header-icon" size={24} style={{ marginBottom: "0.5rem" }} />
               <div className="metric-value">{result.execution_metrics?.llm_calls || 0}</div>
               <div className="metric-label">LLM Operations</div>
             </div>
             <div className="metric-card">
-              <TerminalSquare className="header-icon" size={24} style={{marginBottom: "0.5rem"}} />
+              <TerminalSquare className="header-icon" size={24} style={{ marginBottom: "0.5rem" }} />
               <div className="metric-value">{result.execution_metrics?.tool_calls || 0}</div>
               <div className="metric-label">Tool Invocations</div>
             </div>
           </div>
 
           {result.errors && result.errors.length > 0 && (
-            <div style={{color: '#f87171', padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px'}}>
-              <h3 style={{marginTop: 0}}><AlertTriangle size={20} style={{marginRight: '8px', verticalAlign: 'middle'}}/> Workflow Errors</h3>
-              <ul style={{margin: 0}}>
+            <div style={{ color: '#f87171', padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px' }}>
+              <h3 style={{ marginTop: 0 }}><AlertTriangle size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} /> Workflow Errors</h3>
+              <ul style={{ margin: 0 }}>
                 {result.errors.map((err, i) => <li key={i}>{err}</li>)}
               </ul>
             </div>
@@ -131,11 +133,11 @@ function App() {
               </button>
             </div>
 
-            <div className="tab-content">
-              {activeTab === 'plan' && <pre>{result.plan || "No plan generated."}</pre>}
-              {activeTab === 'investigation' && <pre>{result.investigation_results || "No investigation data."}</pre>}
-              {activeTab === 'analysis' && <pre>{result.analysis || "No analysis generated."}</pre>}
-              {activeTab === 'decision' && <pre>{result.decision || "No decision formulated."}</pre>}
+            <div className="tab-content markdown-body">
+              {activeTab === 'plan' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.plan || "No plan generated."}</ReactMarkdown>}
+              {activeTab === 'investigation' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.investigation_results || "No investigation data."}</ReactMarkdown>}
+              {activeTab === 'analysis' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.analysis || "No analysis generated."}</ReactMarkdown>}
+              {activeTab === 'decision' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.decision || "No decision formulated."}</ReactMarkdown>}
             </div>
           </div>
 

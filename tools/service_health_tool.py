@@ -1,19 +1,11 @@
-import json
+import sqlite3
 import os
 from langchain_core.tools import tool
 from utils.logging_config import setup_logger
 
 logger = setup_logger("service_health_tool")
 
-MOCK_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "utils", "mock_data.json")
-
-def load_mock_data():
-    try:
-        with open(MOCK_DATA_PATH, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Failed to load mock data: {e}")
-        return {}
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "enterprise_mock.db")
 
 @tool
 def check_health(service: str) -> str:
@@ -29,20 +21,25 @@ def check_health(service: str) -> str:
     logger.info(f"Checking health for service: {service}")
     
     try:
-        data = load_mock_data()
-        health_data = data.get("health", {})
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
         
-        if service not in health_data:
-            return f"Service not found: {service}. Available services: {list(health_data.keys())}"
+        cursor.execute("SELECT status, latency_ms, error_rate FROM service_health WHERE service = ?", (service,))
+        row = cursor.fetchone()
+        
+        if not row:
+            cursor.execute("SELECT DISTINCT service FROM service_health")
+            available = [r[0] for r in cursor.fetchall()]
+            conn.close()
+            return f"Service not found: {service}. Available services: {available}"
             
-        health = health_data[service]
-        status = health.get("status", "Unknown")
-        metrics = health.get("metrics", {})
+        status, latency_ms, error_rate = row
         
         result = f"Service: {service}\nStatus: {status}\nMetrics:\n"
-        for k, v in metrics.items():
-            result += f"- {k}: {v}\n"
+        result += f"- latency_ms: {latency_ms}\n"
+        result += f"- error_rate: {error_rate}\n"
             
+        conn.close()
         return result
         
     except Exception as e:

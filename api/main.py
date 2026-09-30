@@ -46,7 +46,7 @@ async def startup_event():
         print(f"Startup Error: {e}")
 
 @app.post("/workflow/run", response_model=WorkflowResponse)
-async def run_workflow(req: WorkflowRequest):
+def run_workflow(req: WorkflowRequest):
     if not req.request_text:
         raise HTTPException(status_code=400, detail="request_text is required.")
         

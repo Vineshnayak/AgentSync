@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, mock_open
+from unittest.mock import patch
 
 from tools.log_analyzer_tool import analyze_logs
 from tools.service_health_tool import check_health
@@ -8,52 +8,29 @@ from tools.knowledge_base_tool import search_runbooks
 from tools.incident_action_tool import manage_incident
 from tools.external_api_tool import check_external_service_status
 
-MOCK_JSON_DATA = """
-{
-    "logs": {
-        "Payment API": [
-            {"timestamp": "2026-09-18T10:00:00Z", "level": "ERROR", "message": "500 Error"}
-        ]
-    },
-    "health": {
-        "Payment API": {"status": "Down", "metrics": {"latency_ms": 5000}}
-    },
-    "incidents": [
-        {"id": "INC-001", "service": "Payment API", "description": "Failure", "resolution": "Fixed"}
-    ],
-    "runbooks": {
-        "Payment API": ["1. Check DB"]
-    }
-}
-"""
 
-@patch("builtins.open", new_callable=mock_open, read_data=MOCK_JSON_DATA)
-def test_log_analyzer_tool_success(mock_file):
+def test_log_analyzer_tool_success():
     result = analyze_logs.invoke({"service": "Payment API", "time_range": "last 1h"})
-    assert "500 Error" in result
+    assert "500 Internal Server Error" in result
     assert "Payment API" in result
 
-@patch("builtins.open", new_callable=mock_open, read_data=MOCK_JSON_DATA)
-def test_log_analyzer_tool_not_found(mock_file):
+def test_log_analyzer_tool_not_found():
     result = analyze_logs.invoke({"service": "Unknown API", "time_range": "last 1h"})
     assert "No logs found for service" in result
 
-@patch("builtins.open", new_callable=mock_open, read_data=MOCK_JSON_DATA)
-def test_service_health_tool_success(mock_file):
+def test_service_health_tool_success():
     result = check_health.invoke({"service": "Payment API"})
     assert "Status: Down" in result
     assert "latency_ms: 5000" in result
 
-@patch("builtins.open", new_callable=mock_open, read_data=MOCK_JSON_DATA)
-def test_incident_history_tool_success(mock_file):
+def test_incident_history_tool_success():
     result = search_incident_history.invoke({"query": "payment"})
     assert "INC-001" in result
-    assert "Failure" in result
+    assert "Payment failures" in result
 
-@patch("builtins.open", new_callable=mock_open, read_data=MOCK_JSON_DATA)
-def test_knowledge_base_tool_success(mock_file):
+def test_knowledge_base_tool_success():
     result = search_runbooks.invoke({"query": "payment"})
-    assert "1. Check DB" in result
+    assert "1. Check database connection" in result
 
 def test_incident_action_tool_success():
     result = manage_incident.invoke({"action": "create", "details": "API is down"})
