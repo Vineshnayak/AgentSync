@@ -20,6 +20,11 @@ def run_decision(state: AgentState) -> AgentState:
         system_msg = SystemMessage(content="""You are the Decision Agent for an IT Incident Resolution Engine.
 Evaluate the root cause analysis provided and formulate a final mitigation and resolution strategy.
 Determine if an incident ticket needs to be created or escalated, and outline the exact actions to take.
+
+CRITICAL RULE: If the analysis indicates that the requested service is NOT FOUND, unmonitored, or outside of our database, you MUST output exactly this phrase and nothing else (do not add any intro or outro):
+"I cannot diagnose the [Service Name] because it is currently outside of our monitored systems. I have automatically created an escalated ticket ([Ticket ID]) for a human engineer to investigate the unmonitored server manually."
+Replace [Service Name] with the name of the missing service, and [Ticket ID] with a random ticket ID (e.g., INC-4928).
+
 If past similar decisions are provided, use them as context to inform your recommendation.
 Provide a complete, final user-facing response with clear next steps.
 """)
@@ -44,7 +49,32 @@ Provide a complete, final user-facing response with clear next steps.
         response = llm.invoke([system_msg, human_msg])
         global_metrics.increment_llm()
         
-        state["decision"] = response.content
+        decision_text = response.content
+        
+        # Check if the unmonitored service rule was triggered
+        if "outside of our monitored systems" in decision_text:
+            import re
+            import os
+            
+            # Extract the generated ticket ID
+            ticket_match = re.search(r'(INC-\d+)', decision_text)
+            ticket_id = ticket_match.group(1) if ticket_match else "INC-9999"
+            
+            # Create tickets directory
+            tickets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tickets")
+            os.makedirs(tickets_dir, exist_ok=True)
+            
+            # Save the ticket as a markdown file
+            filepath = os.path.join(tickets_dir, f"{ticket_id}.md")
+            with open(filepath, "w") as f:
+                f.write(f"# Escalated Incident Ticket: {ticket_id}\n\n")
+                f.write(f"**Original User Request:** {state['user_request']}\n\n")
+                f.write(f"**Status:** Unmonitored System - Manual Investigation Required\n\n")
+                f.write(f"**Agent Decision / Message:**\n{decision_text}\n")
+                
+            logger.info(f"Created out-of-context markdown ticket at {filepath}")
+        
+        state["decision"] = decision_text
         state["workflow_status"] = "Completed"
         
     except Exception as e:
