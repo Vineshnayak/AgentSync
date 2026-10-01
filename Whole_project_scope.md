@@ -2,6 +2,7 @@
 
 ## 1. Project Objective & Vision
 **Project Name:** AgentSync
+
 **Primary Objective:** To develop an AI Agent Coordination & Decision Engine that enables multiple specialized AI agents to collaborate intelligently across complex enterprise workflows. 
 
 Modern enterprises require workflows where multiple specialized agents share information, utilize external tools, and make coordinated decisions. AgentSync serves as an orchestration platform to automate these multi-step business processes, specifically tailored (in this implementation) to **Automated IT Incident Resolution**.
