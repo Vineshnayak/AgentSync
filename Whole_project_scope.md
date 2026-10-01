@@ -66,6 +66,22 @@ To interact with the outside world, the Investigation Agent is equipped with 6 c
 - **Short-Term Memory:** Handled natively by LangGraph. As the state flows from node to node, each agent appends its findings, creating a unified conversational context.
 - **Long-Term Memory:** Managed by `memory/memory_manager.py`. Once a workflow completes successfully, the final state (Request, Plan, Analysis, Decision, Metrics) is securely committed to a local SQLite database (`agentsync_memory.db`). This allows future executions to recall how past similar incidents were resolved.
 
+### 5.1 Database Schemas (Data Persistence)
+The system utilizes two distinct SQLite databases to simulate an enterprise environment and maintain agent context.
+
+#### 1. `enterprise_mock.db` (Simulated IT Infrastructure)
+This database acts as the external knowledge base and status tracker for the Investigation Agent.
+- **`service_health`**: Tracks real-time metrics (`service` TEXT PRIMARY KEY, `status` TEXT, `latency_ms` REAL, `error_rate` REAL).
+- **`service_logs`**: Stores application event logs (`id` INTEGER PRIMARY KEY, `service` TEXT, `timestamp` TEXT, `level` TEXT, `message` TEXT).
+- **`historical_incidents`**: Logs past outages (`incident_id` TEXT PRIMARY KEY, `service` TEXT, `description` TEXT, `resolution` TEXT).
+- **`service_runbooks`**: Contains standard operating procedures (`id` INTEGER PRIMARY KEY, `service` TEXT, `step_number` INTEGER, `step_description` TEXT).
+- **`sales`**: Basic mock table for regional revenue (`id` INTEGER PRIMARY KEY, `region` TEXT, `revenue` REAL, `quarter` TEXT).
+
+#### 2. `agentsync_memory.db` (Long-Term Memory)
+This database persists the conversational context of past agent workflows for the Decision Agent to reference.
+- **`workflow_history`**: Saves the full lifecycle of an incident resolution (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `user_request` TEXT, `plan` TEXT, `research_results` TEXT, `analysis` TEXT, `decision` TEXT, `timestamp` DATETIME).
+
+
 ## 6. Technology Stack
 - **Core Language:** Python 3.10+
 - **LLM Provider:** Groq API (utilizing `llama3-8b-8192` for high-speed, high-context reasoning).
