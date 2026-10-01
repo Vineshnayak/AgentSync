@@ -38,10 +38,16 @@ No critical defects remain in the final implementation. Minor defects identified
 | US-12 | T-02 | Setup agentsync_memory.db and wire up long-term memory retrieval in decision node. | 28/09/2026 | 29/09/2026 | Vinesh | Build | Completed |
 | US-13 | T-03 | Add unmonitored service detection and auto-generate markdown incident tickets. | 30/09/2026 | 30/09/2026 | Vinesh | Build | Completed |
 
-## 5. Agile Documentation (Stand up Meeting - Milestone 3)
+## 5. Agile Documentation (Stand up Meeting - All Sprints)
 
 | Sprint | Day | Impediments | Action Taken |
 |---|---|---|---|
+| Sprint 1 | Day 1 | LangChain dependency conflicts with existing Python environment. | Created a clean virtual environment and pinned specific versions of langchain-core and langgraph in requirements.txt. |
+| Sprint 1 | Day 2 | Planner Agent hallucinated investigative data instead of strictly generating a plan. | Refined the system prompt to explicitly state: "Do not perform the investigation yourself. Just output the step-by-step plan." |
+| Sprint 1 | Day 3 | LangGraph nodes lost context when transitioning between Planner and Investigation agents. | Standardized the AgentState TypedDict to ensure critical fields are explicitly passed across all state transitions. |
+| Sprint 2 | Day 1 | Unsure how to simulate real enterprise APIs without expensive infrastructure. | Created utils/mock_data.json to act as a local, lightweight database representing 3 core IT services. |
+| Sprint 2 | Day 2 | Groq API throwing Rate Limit Exceeded (429) errors because 4 agents are running in rapid sequence. | Switched DEFAULT_MODEL to llama3-8b-8192 to leverage higher free-tier token limits. |
+| Sprint 2 | Day 3 | Streamlit Dashboard is showing "0 Tool Calls" even though the Investigation Agent is using tools. | Wrote custom parsing logic in investigation_agent.py to count m.type == "tool" messages and update UI metrics. |
 | Sprint 3 | Day 1 | FastAPI server blocked all traffic and crashed ('Connection reset') when running complex 4-agent investigations. | Refactored the `/workflow/run` API endpoint from an `async def` to a standard `def` thread pool worker to prevent the event loop from blocking. |
 | Sprint 3 | Day 2 | SQLite connection leaks caused "database is locked" errors when the Investigation Agent executed tools rapidly. | Added explicit `conn.close()` calls inside all early return paths within the SQLite-backed tools (health, logs, history, runbooks). |
 | Sprint 3 | Day 3 | The system crashed or hallucinated when users asked about completely unmonitored services not in the DB. | Implemented a CRITICAL RULE prompt in the Decision Agent and Python parsing logic to auto-generate markdown escalation tickets (`INC-XXXX.md`). |
