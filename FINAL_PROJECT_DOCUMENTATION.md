@@ -26,8 +26,22 @@ No critical defects remain in the final implementation. Minor defects identified
 
 | Planned Sprint | Actual Sprint | US ID | User Story Description | MOSCOW | Dependency | Assignee | Status |
 |---|---|---|---|---|---|---|---|
-| Sprint 1 | Sprint 1 | US-01 | Agent Environment Setup (LangChain, Groq, basic Agent classes and state) | Must Have | None | Lead Developer | Completed |
-| Sprint 1 | Sprint 1 | US-02 | Tool Integration (Calculator, Mock Business DB, Knowledge Retrieval) | Must Have | US-01 | Lead Developer | Completed |
-| Sprint 1 | Sprint 1 | US-03 | Agent Coordination (LangGraph node graph, short/long-term memory) | Must Have | US-02 | Lead Developer | Completed |
-| Sprint 1 | Sprint 1 | US-04 | Decision Intelligence (Conditional routing based on Risk Evaluation) | Must Have | US-03 | Lead Developer | Completed |
-| Sprint 1 | Sprint 1 | US-05 | Enterprise API & Dashboard (Streamlit UI and FastAPI endpoints) | Must Have | US-04 | Lead Developer | Completed |
+| Sprint 3 | Sprint 3 | US-11 | Develop specialized agents (Planner, Investigation, Analysis, Decision) with distinct business roles | MUST HAVE | US-10 | Vinesh | 3- Completed |
+| Sprint 3 | Sprint 3 | US-12 | Implement long-term memory system (SQLite) to track past workflows and enable context-aware decisions | MUST HAVE | US-11 | Vinesh | 3- Completed |
+| Sprint 3 | Sprint 3 | US-13 | Implement out-of-context ticket escalation (auto-generating markdown files for unmonitored services) | MUST HAVE | US-12 | Vinesh | 3- Completed |
+
+## 4. Agile Documentation (Sprint Backlog - Milestone 3)
+
+| US ID | Task ID | Task Description | Task Start Date | Task Completion Date | Team Member | Activity | Status |
+|---|---|---|---|---|---|---|---|
+| US-11 | T-01 | Develop Planner, Investigation, Analysis, and Decision agents using LangGraph. | 25/09/2026 | 27/09/2026 | Vinesh | Build | Completed |
+| US-12 | T-02 | Setup agentsync_memory.db and wire up long-term memory retrieval in decision node. | 28/09/2026 | 29/09/2026 | Vinesh | Build | Completed |
+| US-13 | T-03 | Add unmonitored service detection and auto-generate markdown incident tickets. | 30/09/2026 | 30/09/2026 | Vinesh | Build | Completed |
+
+## 5. Agile Documentation (Stand up Meeting - Milestone 3)
+
+| Sprint | Day | Impediments | Action Taken |
+|---|---|---|---|
+| Sprint 3 | Day 1 | FastAPI server blocked all traffic and crashed ('Connection reset') when running complex 4-agent investigations. | Refactored the `/workflow/run` API endpoint from an `async def` to a standard `def` thread pool worker to prevent the event loop from blocking. |
+| Sprint 3 | Day 2 | SQLite connection leaks caused "database is locked" errors when the Investigation Agent executed tools rapidly. | Added explicit `conn.close()` calls inside all early return paths within the SQLite-backed tools (health, logs, history, runbooks). |
+| Sprint 3 | Day 3 | The system crashed or hallucinated when users asked about completely unmonitored services not in the DB. | Implemented a CRITICAL RULE prompt in the Decision Agent and Python parsing logic to auto-generate markdown escalation tickets (`INC-XXXX.md`). |
