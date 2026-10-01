@@ -70,7 +70,7 @@ To interact with the outside world, the Investigation Agent is equipped with 6 c
 - **Core Language:** Python 3.10+
 - **LLM Provider:** Groq API (utilizing `llama3-8b-8192` for high-speed, high-context reasoning).
 - **Orchestration & Agents:** LangChain Core, LangChain Groq, and LangGraph.
-- **User Interface:** Streamlit (Provides a clean, enterprise-style dashboard to submit incidents and view real-time agent metrics).
+- **User Interface:** React/Vite (Provides a clean, enterprise-style dashboard to submit incidents and view real-time agent metrics).
 - **API Layer:** FastAPI / Uvicorn (Provides REST endpoints to trigger workflows programmatically).
 - **Data Persistence:** SQLite3 (Handles both the simulated enterprise ITSM database and the AgentSync long-term memory).
 - **Testing:** Pytest (Validates agent reasoning, tool execution, and workflow routing).

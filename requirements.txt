@@ -1,7 +1,6 @@
 langchain
 langgraph
 langchain-groq
-streamlit
 fastapi
 uvicorn
 python-dotenv

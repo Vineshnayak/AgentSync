@@ -27,7 +27,7 @@ The core orchestration is managed by a state graph (`workflow/agent_workflow.py`
 - **Language**: Python 3.10+
 - **LLM Provider**: Groq API
 - **Orchestration**: LangChain & LangGraph
-- **User Interface**: Streamlit (Dashboard)
+- **User Interface**: React/Vite (Dashboard)
 - **Data Persistence**: SQLite
 
 ## Setup & Execution
@@ -44,10 +44,18 @@ Install the required Python packages:
 pip install -r requirements.txt
 ```
 
-### 3. Launch the Application
-Start the Streamlit dashboard to interact with the agent workflow:
+### 3. Launch the API
+Start the FastAPI backend service:
 ```bash
-streamlit run app.py
+uvicorn api.main:app --reload
+```
+
+### 4. Launch the Frontend
+In a separate terminal, navigate to the frontend directory and start the React app:
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
 ### 4. Execute Test Suite
