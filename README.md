@@ -1,59 +1,57 @@
-# AgentSync
-
-An AI-Powered IT Incident Resolution & Coordination Engine.
+# AgentSync: AI Agent Coordination & Decision Engine
 
 ## Project Overview
 
-AgentSync is an enterprise-grade multi-agent system designed to autonomously coordinate and resolve IT incidents. By utilizing a network of specialized AI agents, AgentSync can plan investigation workflows, securely gather evidence from internal IT systems, perform root cause analysis, and recommend actionable mitigation strategies.
+AgentSync is an AI-powered coordination and decision engine designed to automate complex business workflows and IT incident resolution. By coordinating multiple specialized AI agents, the platform enables intelligent collaboration, information retrieval, analysis, and decision support across functional domains. 
 
-## Architecture
+The system leverages Large Language Models (LLMs), orchestration frameworks, memory systems, and external tool integrations to automate multi-step processes and provide context-aware recommendations.
 
-The system logic is built around `workflow/agent_workflow.py`, which manages state transitions across four primary agents using LangGraph:
+## System Architecture
 
-1. **Planner Agent**: Parses incoming IT incident requests and structures a clear, step-by-step investigation plan.
-2. **Investigation Agent**: Intelligently selects and utilizes integrated IT service management tools (Log Analyzer, Service Health, Incident History, Knowledge Base, Incident Action) to gather evidence.
-3. **Analysis Agent**: Evaluates the retrieved evidence to identify root causes, impact, and operational risks.
-4. **Decision Agent**: Formulates a comprehensive mitigation and resolution strategy, determining whether automated ticket creation or human escalation is required.
+The core orchestration is managed by a state graph (`workflow/agent_workflow.py`), which coordinates four specialized agents:
+
+1. **Planner Agent**: Analyzes incoming requests and formulates a structured, step-by-step execution plan.
+2. **Investigation Agent**: Autonomously selects and executes integrated tools (e.g., Log Analyzer, Service Health, External API checks) to gather necessary context and evidence.
+3. **Analysis Agent**: Evaluates the gathered data to identify root causes, assess impact, and determine risk levels.
+4. **Decision Agent**: Formulates a final resolution strategy and determines whether automated ticketing or human escalation is required. It utilizes a long-term memory database to ensure consistent decision-making based on past workflows.
+
+## Core Features
+
+- **Multi-Agent Coordination**: Agents collaborate in a sequential pipeline, passing context via a shared state object.
+- **Intelligent Tool Integration**: The system natively integrates with simulated enterprise services, databases, and external APIs with built-in error handling.
+- **Shared Knowledge & Memory**: Implements short-term state memory and long-term SQLite-backed memory (`agentsync_memory.db`) for context-aware decision support.
+- **Dynamic Workflow Routing**: Includes conditional logic to route tasks (e.g., routing back for further investigation or escalating unmonitored systems by auto-generating markdown tickets).
 
 ## Technology Stack
 
 - **Language**: Python 3.10+
 - **LLM Provider**: Groq API
 - **Orchestration**: LangChain & LangGraph
-- **Interfaces**: Streamlit (Dashboard) & FastAPI (REST API)
-- **Data Backend**: Local JSON/SQLite architecture (Simulated Enterprise ITSM integration)
-
-## Core Capabilities
-
-- **Intelligent Tool Selection**: Dynamic evidence gathering using ReAct paradigms.
-- **Robust Error Handling**: Type-safe tool inputs and graceful fallback mechanisms.
-- **State Management**: Optimized context sharing between LLM calls using LangGraph state objects.
-- **Telemetry**: Built-in tracking for execution metrics, latency, and token consumption.
+- **User Interface**: Streamlit (Dashboard)
+- **Data Persistence**: SQLite
 
 ## Setup & Execution
 
-1. **Configure Environment:**
-   Copy `.env.example` to `.env` and provide your `GROQ_API_KEY`.
-   
-2. **Install Dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 1. Configure Environment
+Create a `.env` file in the root directory and provide your Groq API key:
+```env
+GROQ_API_KEY=your_api_key_here
+```
 
-3. **Launch the API:**
-   Start the FastAPI backend service:
-   ```bash
-   uvicorn api.main:app --reload
-   ```
+### 2. Install Dependencies
+Install the required Python packages:
+```bash
+pip install -r requirements.txt
+```
 
-4. **Launch the Dashboard:**
-   In a separate terminal, start the Streamlit UI:
-   ```bash
-   streamlit run app.py
-   ```
+### 3. Launch the Application
+Start the Streamlit dashboard to interact with the agent workflow:
+```bash
+streamlit run app.py
+```
 
-5. **Execute Test Suite:**
-   Run the test suite using pytest to verify agent reasoning and tool logic:
-   ```bash
-   pytest tests/
-   ```
+### 4. Execute Test Suite
+Run the automated test suite to validate agent logic, workflow routing, and tool execution:
+```bash
+pytest tests/
+```
