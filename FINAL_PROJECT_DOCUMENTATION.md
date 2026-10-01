@@ -26,8 +26,14 @@ No critical defects remain in the final implementation. Minor defects identified
 
 | Sl No | Submitted By | Submitted Date | Description | Detected Sprint | Assigned To | Type Of Defect | Action Taken | Action Taken Date | Status(Open/Closed) | Remarks |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | AgentSync Dev | 2026-09-03 | LangGraph duplicate tool execution error | Sprint 1 | Lead Developer | Logic / Execution | Switched to `create_react_agent` from LangGraph prebuilt. | 2026-09-03 | Closed | Resolved |
-| 2 | AgentSync Dev | 2026-09-03 | SQLite thread lock error during memory save | Sprint 1 | Lead Developer | Database | Added try/except blocks and ensured `conn.close()` is called on every transaction. | 2026-09-03 | Closed | Resolved |
+| 1 | Vinesh | 03/09/2026 | LangGraph duplicate tool execution error | Sprint 1 | Vinesh | Logical | Switched to `create_react_agent` from LangGraph prebuilt. | 30/08/2026 | Closed | Resolved |
+| 2 | Vinesh | 03/09/2026 | SQLite thread lock error during memory save | Sprint 1 | Vinesh | Database | Added try/except blocks and ensured `conn.close()` is called on every transaction. | 30/08/2026 | Closed | Resolved |
+| 3 | Vinesh | 18/09/2026 | Streamlit UI showing "0 Tool Calls" even when tools are executed. | Sprint 2 | Vinesh | Logical | Updated `investigation_agent.py` to count `m.type == "tool"` and increment `global_metrics`. | 18/09/2026 | Closed | Resolved |
+| 4 | Vinesh | 18/09/2026 | Groq API throwing "Rate Limit Exceeded (429)" / "Request too large" errors. | Sprint 2 | Vinesh | Logical | Switched `DEFAULT_MODEL` to `llama3-8b-8192`. | 18/09/2026 | Closed | Resolved |
+| 5 | Vinesh | 18/09/2026 | `manage_incident` tool crashing when provided an invalid action type. | Sprint 2 | Vinesh | Logical | Added validation to return an "Invalid action" error string. | 18/09/2026 | Closed | Resolved |
+| 6 | Vinesh | 27/09/2026 | FastAPI server crashing with 'Connection reset by peer' when running complex 4-agent workflows. | Sprint 3 | Vinesh | Architecture | Refactored `/workflow/run` endpoint from async to standard `def` thread pool worker. | 27/09/2026 | Closed | Resolved |
+| 7 | Vinesh | 29/09/2026 | SQLite `database is locked` error caused by connection leaks during rapid tool execution. | Sprint 3 | Vinesh | Database | Added explicit `conn.close()` calls inside all early return paths within SQLite-backed tools. | 29/09/2026 | Closed | Resolved |
+| 8 | Vinesh | 30/09/2026 | System hallucinates logic when users query about completely unmonitored IT services. | Sprint 3 | Vinesh | Logical | Added CRITICAL RULE to prompt and python parsing logic to auto-generate `INC-XXXX.md` tickets. | 30/09/2026 | Closed | Resolved |
 
 ## 3. Agile Documentation (Product Backlog)
 
