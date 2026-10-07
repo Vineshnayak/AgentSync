@@ -5,6 +5,8 @@ from typing import Dict, Any, List
 from workflow.agent_workflow import run_agent_workflow
 from config.settings import settings
 import uuid
+from langchain_groq import ChatGroq
+from langchain_core.messages import SystemMessage, HumanMessage
 
 app = FastAPI(
     title="AgentSync Enterprise API",
@@ -86,9 +88,59 @@ async def get_workflow_status(job_id: str):
 async def list_agents():
     return {
         "agents": [
-            {"id": "planner", "description": "Breaks down incident requests into a structured plan"},
-            {"id": "investigation", "description": "Gathers evidence using enterprise tools"},
-            {"id": "analysis", "description": "Performs root cause analysis and identifies risks"},
-            {"id": "decision", "description": "Formulates final recommendations"}
+            {"id": "planner", "name": "Planner Agent", "description": "Breaks down incident requests into a structured execution plan, determining the order of operations.", "status": "Online"},
+            {"id": "investigation", "name": "Investigation Agent", "description": "Gathers evidence using enterprise tools, querying logs and metrics.", "status": "Online"},
+            {"id": "analysis", "name": "Analysis Agent", "description": "Performs root cause analysis and identifies risks from the gathered data.", "status": "Online"},
+            {"id": "decision", "name": "Decision Agent", "description": "Formulates final recommendations and generates resolution steps.", "status": "Online"}
         ]
     }
+
+@app.get("/incidents/history")
+async def get_history():
+    try:
+        import sqlite3
+        conn = sqlite3.connect("agentsync_memory.db")
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, user_request, timestamp, decision FROM workflow_history ORDER BY timestamp DESC LIMIT 20")
+        results = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return {"history": results}
+    except Exception as e:
+        return {"history": [], "error": str(e)}
+
+class ChatMessage(BaseModel):
+    message: str
+
+@app.post("/workflow/chat/{job_id}")
+async def chat_followup(job_id: str, chat: ChatMessage):
+    job = workflow_jobs.get(job_id)
+    
+    if job:
+        context_str = f"Plan:\n{job.get('plan')}\n\nDecision:\n{job.get('decision')}"
+    else:
+        context_str = "No prior context available for this job."
+        
+    try:
+        llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.DEFAULT_MODEL)
+        system_msg = SystemMessage(
+            content=f"""You are the Resolution Copilot for AgentSync. Your role is strictly to help the user follow up on their specific IT incident ticket.
+
+Original Incident Context:
+{context_str}
+
+CRITICAL INSTRUCTION:
+You MUST ONLY answer questions that are DIRECTLY related to the "Original Incident Context" above.
+If the user asks about ANY system, issue, or topic that is NOT part of the original incident (for example, if the incident is about the 'payment api' and they ask about a 'login page', or vice versa), you MUST reject the request.
+
+If the request is unrelated, you MUST reply EXACTLY with this string and nothing else:
+"This is not a follow-up to the current incident. Please ask this independently as a new request."
+
+Under no circumstances should you provide troubleshooting steps or information for an unrelated issue."""
+        )
+        human_msg = HumanMessage(content=chat.message)
+        
+        response = llm.invoke([system_msg, human_msg])
+        return {"reply": response.content}
+    except Exception as e:
+        return {"reply": f"**Error connecting to LLM**: {str(e)}"}
