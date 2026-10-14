@@ -12,6 +12,8 @@ from tools.knowledge_base_tool import search_runbooks
 from tools.incident_action_tool import manage_incident
 from tools.external_api_tool import check_external_service_status
 
+from utils.llm_client import sanitize_error
+
 logger = setup_logger("investigation_agent")
 
 def run_investigation(state: AgentState) -> AgentState:
@@ -22,18 +24,25 @@ def run_investigation(state: AgentState) -> AgentState:
         return state
 
     try:
-        llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.DEFAULT_MODEL)
+        llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.DEFAULT_MODEL, max_retries=4)
         
         tools = [analyze_logs, check_health, search_incident_history, search_runbooks, manage_incident, check_external_service_status]
         
-        system_msg = "You are the Investigation Agent for IT Incident Resolution. Intelligently select and use the available tools to investigate the incident based on the plan. Gather logs, health status, history, and runbooks. You can also ping external services using check_external_service_status. Do not provide final analysis, only gather evidence and data."
+        system_msg = (
+            "You are the Investigation Agent for IT Incident Resolution. "
+            "Select 2 to 3 essential tools (such as check_health, analyze_logs, search_runbooks) to gather evidence. "
+            "Do not execute more than 3 tool calls. "
+            "Immediately synthesize the gathered logs and metrics into your final evidence summary."
+        )
         
         agent = create_react_agent(llm, tools, prompt=system_msg)
         
         logger.info("Calling Groq API for investigation via React Agent.")
         
-        inputs = {"messages": [HumanMessage(content=f"User Request: {state['user_request']}\nPlan: {state['plan']}")]}
-        result = agent.invoke(inputs)
+        req_snippet = state['user_request'][:500]
+        plan_snippet = state['plan'][:1000]
+        inputs = {"messages": [HumanMessage(content=f"User Request: {req_snippet}\nPlan: {plan_snippet}")]}
+        result = agent.invoke(inputs, {"recursion_limit": 10})
         
         final_message = result["messages"][-1].content
         
@@ -50,7 +59,7 @@ def run_investigation(state: AgentState) -> AgentState:
         
     except Exception as e:
         logger.error(f"Investigation Agent failed: {e}")
-        state["errors"].append(f"Investigation Error: {str(e)}")
+        state["errors"].append(f"Investigation Error: {sanitize_error(e)}")
         state["workflow_status"] = "Error"
         
     return state

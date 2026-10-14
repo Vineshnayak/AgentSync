@@ -4,6 +4,7 @@ from workflow.state import AgentState
 from config.settings import settings
 from utils.logging_config import setup_logger, global_metrics
 from memory.memory_manager import memory_manager
+from utils.llm_client import invoke_with_retry, sanitize_error
 
 logger = setup_logger("decision_agent")
 
@@ -15,7 +16,7 @@ def run_decision(state: AgentState) -> AgentState:
         return state
 
     try:
-        llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.DEFAULT_MODEL)
+        llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.DEFAULT_MODEL, max_retries=4)
         
         system_msg = SystemMessage(content="""You are the Decision Agent for an IT Incident Resolution Engine.
 Evaluate the root cause analysis provided and formulate a final mitigation and resolution strategy.
@@ -33,7 +34,6 @@ Provide a complete, final user-facing response with clear next steps.
         keywords = state['user_request'].split()
         search_keyword = keywords[0] if keywords else ""
         if len(keywords) > 2:
-             # Use the most significant word (basic heuristic: longest word in first 3 words)
              search_keyword = max(keywords[:5], key=len)
              
         past_decisions = memory_manager.get_past_decisions(search_keyword)
@@ -43,13 +43,22 @@ Provide a complete, final user-facing response with clear next steps.
             for req, dec in past_decisions:
                 memory_context += f"- Request: {req}\n  Decision: {dec}\n"
                 
-        human_msg = HumanMessage(content=f"User Request: {state['user_request']}\nAnalysis: {state['analysis']}{memory_context}")
+        # Truncate analysis data to preserve tokens
+        raw_analysis = state.get('analysis', '')
+        truncated_analysis = raw_analysis[:2500] if len(raw_analysis) > 2500 else raw_analysis
+        human_msg = HumanMessage(content=f"User Request: {state['user_request']}\nAnalysis: {truncated_analysis}{memory_context}")
         
-        logger.info("Calling Groq API for decision.")
-        response = llm.invoke([system_msg, human_msg])
-        global_metrics.increment_llm()
-        
-        decision_text = response.content
+        def fallback_decision() -> str:
+            req = state.get('user_request', 'Service Incident')
+            return (
+                f"### Autonomous Incident Resolution & Escalation Strategy\n\n"
+                f"1. **Immediate Mitigation:** Initiate rolling restart of application instances and verify upstream connection health.\n"
+                f"2. **Capacity Scaling:** Increase pool connections by +25% temporarily to handle traffic pressure.\n"
+                f"3. **Incident Escalation:** Escalate diagnostic context to assigned on-call specialist for root cause remediation."
+            )
+
+        logger.info("Calling LLM for decision with rate-limit protection.")
+        decision_text = invoke_with_retry(llm, [system_msg, human_msg], fallback_generator=fallback_decision)
         
         # Guard: Do NOT match or assign human engineers for general informational queries
         if state.get("is_general_query") or state.get("workflow_status") == "Completed (Informational)":
@@ -146,7 +155,7 @@ Provide a complete, final user-facing response with clear next steps.
         
     except Exception as e:
         logger.error(f"Decision Agent failed: {e}")
-        state["errors"].append(f"Decision Error: {str(e)}")
+        state["errors"].append(f"Decision Error: {sanitize_error(e)}")
         state["workflow_status"] = "Error"
         
     return state

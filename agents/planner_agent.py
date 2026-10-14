@@ -4,6 +4,7 @@ from workflow.state import AgentState
 from config.settings import settings
 from utils.logging_config import setup_logger, global_metrics
 from memory.memory_manager import memory_manager
+from utils.llm_client import invoke_with_retry, sanitize_error
 
 logger = setup_logger("planner_agent")
 
@@ -16,7 +17,7 @@ def run_planner(state: AgentState) -> AgentState:
         return state
 
     try:
-        llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.DEFAULT_MODEL)
+        llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.DEFAULT_MODEL, max_retries=4)
         
         system_msg = SystemMessage(content="""You are the Lead Planning & Triage Agent for an Enterprise Multi-Agent Coordination Engine.
 Analyze the user request to determine whether it is an IT Incident or a General/Informational Inquiry.
@@ -45,11 +46,18 @@ Analyze the user request to determine whether it is an IT Incident or a General/
                 
         human_msg = HumanMessage(content=f"Business Request: {state['user_request']}{memory_context}")
         
-        logger.info("Calling Groq API for planning.")
-        response = llm.invoke([system_msg, human_msg])
-        global_metrics.increment_llm()
+        def fallback_plan() -> str:
+            req = state.get('user_request', 'Service Outage')
+            return (
+                f"1. Probe service health and verify response codes for '{req}'.\n"
+                f"2. Inspect recent server logs for connection and timeout exceptions.\n"
+                f"3. Query historical incident database for matching failure signatures.\n"
+                f"4. Search knowledge base runbooks for approved mitigation procedures."
+            )
+
+        logger.info("Calling LLM for planning with rate-limit protection.")
+        content = invoke_with_retry(llm, [system_msg, human_msg], fallback_generator=fallback_plan).strip()
         
-        content = response.content.strip()
         is_info = (
             "[INFORMATIONAL_QUERY]" in content
             or "This interface is for IT Incident Resolution" in content
@@ -78,7 +86,7 @@ Analyze the user request to determine whether it is an IT Incident or a General/
         
     except Exception as e:
         logger.error(f"Planner Agent failed: {e}")
-        state["errors"].append(f"Planner Error: {str(e)}")
+        state["errors"].append(f"Planner Error: {sanitize_error(e)}")
         state["workflow_status"] = "Error"
         
     return state

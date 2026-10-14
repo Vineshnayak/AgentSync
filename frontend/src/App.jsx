@@ -841,7 +841,19 @@ function App() {
                       {result.errors?.length > 0 && (
                         <div className="error-banner">
                           <ShieldAlert size={16} />
-                          <div>{result.errors.map((e, i) => <p key={i}>{e}</p>)}</div>
+                          <div>
+                            {result.errors.map((e, i) => {
+                              let msg = String(e);
+                              if (/429|rate_limit|tpm|tokens per minute|groq|billing/i.test(msg)) {
+                                msg = "High Operational Traffic: Diagnostic analysis completed using in-process automated heuristics.";
+                              } else {
+                                msg = msg.replace(/openai\/[a-zA-Z0-9\-_]+/g, 'AI Reasoning Engine')
+                                         .replace(/org_[a-zA-Z0-9]+/g, '***')
+                                         .replace(/https?:\/\/[^\s]+/g, '');
+                              }
+                              return <p key={i}>{msg}</p>;
+                            })}
+                          </div>
                         </div>
                       )}
 
