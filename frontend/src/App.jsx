@@ -3,25 +3,25 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  Activity, Play, Server, Clock, AlertTriangle,
-  Layers, Search, Bell, User, LayoutDashboard, AlertCircle,
+  Activity, Play, Server, Clock,
+  Layers, Search, Bell, LayoutDashboard, AlertCircle,
   Settings, History, MessageSquare, Send, ChevronRight, CheckCircle2,
-  Cpu, FileTerminal, ShieldAlert, Database, Network, Zap,
-  TrendingUp, RefreshCw, BookOpen, Globe, GitMerge, BarChart3,
-  CheckCircle, XCircle, Info, ArrowUpRight, Ticket, Eye,
+  FileTerminal, ShieldAlert, Database, Network, Zap,
+  TrendingUp, RefreshCw, BookOpen, GitMerge,
+  CheckCircle, Info, Ticket, Eye,
   Users, HeartHandshake, Gauge, Briefcase, Plus, Filter, ShieldCheck, AlertOctagon, Sparkles, Sliders,
-  UserPlus, Trash2, Lock, LockOpen
+  User
 } from 'lucide-react';
 import './App.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-// ─── Reusable Components ──────────────────────────────────────────────────────
+// ─── Reusable Metric Card ─────────────────────────────────────────────────────
 
-function StatCard({ icon: Icon, value, label, color = "#58a6ff", trend }) {
+function StatCard({ icon: Icon, value, label, color = "#6366f1", trend }) {
   return (
     <div className="metric-box">
-      <div className="metric-icon-wrap" style={{ background: `${color}22`, border: `1px solid ${color}44` }}>
+      <div className="metric-icon-wrap" style={{ background: `${color}18`, border: `1px solid ${color}35` }}>
         <Icon size={22} color={color} />
       </div>
       <div>
@@ -44,6 +44,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [jobId, setJobId] = useState(null);
   const [activeTab, setActiveTab] = useState("plan");
+  const [incidentViewMode, setIncidentViewMode] = useState("executive"); // 'executive' | 'diagnostics'
 
   // Follow-up chat state
   const [chatMessages, setChatMessages] = useState([]);
@@ -89,7 +90,7 @@ function App() {
   const [hrModalOpen, setHrModalOpen] = useState(false);
   const [modalOperative, setModalOperative] = useState(null);
 
-  // Forge Mission Modal State
+  // Forge Mission / Project Modal State
   const [missionModalOpen, setMissionModalOpen] = useState(false);
   const [newMission, setNewMission] = useState({
     title: '',
@@ -101,31 +102,26 @@ function App() {
   });
   const [missionSubmitting, setMissionSubmitting] = useState(false);
 
-  // HR Security & Personnel Management State
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
-    return sessionStorage.getItem('agentsync_hr_auth') === 'true';
-  });
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authUsername, setAuthUsername] = useState('admin');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authError, setAuthError] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [pendingAction, setPendingAction] = useState(null);
+  // ─── 1-Click Common Outage Scenarios ─────────────────────────────────────────
 
-  // Add & Delete Team Member State
-  const [addEmpModalOpen, setAddEmpModalOpen] = useState(false);
-  const [newEmployee, setNewEmployee] = useState({
-    name: '',
-    role: '',
-    department: 'Cloud Infrastructure',
-    email: '',
-    skills: '',
-    allocatedCapacity: 40
-  });
-  const [addEmpLoading, setAddEmpLoading] = useState(false);
-  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [actionAlert, setActionAlert] = useState(null);
+  const quickScenarios = [
+    {
+      title: "💳 Payment Gateway Timeouts",
+      text: "Payment system is timing out during customer checkout and database connections are overloaded under heavy traffic."
+    },
+    {
+      title: "🗄️ Database Out of Connections",
+      text: "User profile service cannot connect to the database because all available database connections are in use."
+    },
+    {
+      title: "🔐 Login & Sign-in Failures",
+      text: "Users are unable to log in because security login tokens are expiring and failing validation."
+    },
+    {
+      title: "⚡ Order Processing Delay",
+      text: "Customer orders are backing up in the processing queue, causing delivery status updates to stall."
+    }
+  ];
 
   // ─── Data Fetchers ──────────────────────────────────────────────────────────
 
@@ -135,7 +131,7 @@ function App() {
       const res = await axios.get(`${API_BASE}/tickets`);
       setTickets(res.data.tickets || []);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to fetch tickets:", e);
     } finally {
       setTicketsLoading(false);
     }
@@ -148,7 +144,7 @@ function App() {
       setHistory(res.data.history || []);
       setHistoryTotal(res.data.total || 0);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to fetch history:", e);
     } finally {
       setHistoryLoading(false);
     }
@@ -164,7 +160,7 @@ function App() {
       setMetrics(metricsRes.data);
       setApiHealth(healthRes.data);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to fetch metrics:", e);
     } finally {
       setMetricsLoading(false);
     }
@@ -183,12 +179,19 @@ function App() {
         setSelectedHrOpId(ops[0].id);
       }
     } catch (e) {
-      console.error(e);
+      console.error("Failed to fetch HCM state:", e);
     } finally {
       setHcmLoading(false);
     }
   }, [selectedHrOpId]);
 
+  // Initial load: fetch status & team state right away
+  useEffect(() => {
+    fetchMetrics();
+    fetchHcmState();
+  }, [fetchMetrics, fetchHcmState]);
+
+  // View-specific trigger
   useEffect(() => {
     if (currentView === "history") fetchHistory();
     if (currentView === "tickets") fetchTickets();
@@ -210,13 +213,14 @@ function App() {
     setChatActive(false);
     setChatMessages([]);
     setActiveTab("plan");
+    setIncidentViewMode("executive");
 
     try {
       const res = await axios.post(`${API_BASE}/workflow/run`, { request_text: requestText });
       setResult(res.data);
       setJobId(res.data.job_id);
       setChatMessages([
-        { role: 'ai', content: res.data.decision || "Workflow complete. How would you like to proceed with this resolution?" }
+        { role: 'ai', content: res.data.decision || "Automated triage complete. What further remediation steps would you like to explore?" }
       ]);
       fetchHcmState();
     } catch (error) {
@@ -239,7 +243,7 @@ function App() {
       const res = await axios.post(`${API_BASE}/workflow/chat/${jobId}`, { message: msg });
       setChatMessages(prev => [...prev, { role: 'ai', content: res.data.reply }]);
     } catch {
-      setChatMessages(prev => [...prev, { role: 'ai', content: "**Error**: Unable to reach resolution agent." }]);
+      setChatMessages(prev => [...prev, { role: 'ai', content: "**Notice**: Unable to connect with resolution copilot." }]);
     } finally {
       setIsChatting(false);
     }
@@ -249,7 +253,7 @@ function App() {
     if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, chatActive, isChatting]);
 
-  // ─── HCM Actions ────────────────────────────────────────────────────────────
+  // ─── Team & Project Actions ─────────────────────────────────────────────────
 
   const handleToggleAllocation = async (opId, prjId) => {
     try {
@@ -329,183 +333,9 @@ function App() {
       });
       fetchHcmState();
     } catch (err) {
-      console.error("Forge mission failed:", err);
+      console.error("Forge project failed:", err);
     } finally {
       setMissionSubmitting(false);
-    }
-  };
-
-  // ─── Personnel Security & Management Handlers ───────────────────────────────
-
-  const handleAdminLogin = async (e) => {
-    if (e) e.preventDefault();
-    setAuthError('');
-    setAuthLoading(true);
-    try {
-      const res = await axios.post(`${API_BASE}/auth/admin-login`, {
-        username: authUsername,
-        password: authPassword
-      });
-      if (res.data.authenticated) {
-        setIsAdminAuthenticated(true);
-        sessionStorage.setItem('agentsync_hr_auth', 'true');
-        setAuthModalOpen(false);
-        setAuthPassword('');
-        setActionAlert({ type: 'success', message: 'HR Administrator mode unlocked.' });
-        setTimeout(() => setActionAlert(null), 3000);
-
-        // Execute pending action if any
-        if (pendingAction === 'add_employee') {
-          setAddEmpModalOpen(true);
-        } else if (pendingAction && pendingAction.type === 'delete_employee') {
-          setDeleteConfirmTarget({ id: pendingAction.id, name: pendingAction.name });
-        }
-        setPendingAction(null);
-      }
-    } catch (err) {
-      if (authUsername === 'admin' && ['admin123', 'adminpassword', 'agentsync2026'].includes(authPassword)) {
-        setIsAdminAuthenticated(true);
-        sessionStorage.setItem('agentsync_hr_auth', 'true');
-        setAuthModalOpen(false);
-        setAuthPassword('');
-        setActionAlert({ type: 'success', message: 'HR Administrator mode unlocked.' });
-        setTimeout(() => setActionAlert(null), 3000);
-
-        if (pendingAction === 'add_employee') {
-          setAddEmpModalOpen(true);
-        } else if (pendingAction && pendingAction.type === 'delete_employee') {
-          setDeleteConfirmTarget({ id: pendingAction.id, name: pendingAction.name });
-        }
-        setPendingAction(null);
-        return;
-      }
-      setAuthError(err.response?.data?.detail || "Invalid credentials. Try admin / admin123");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleLockAdmin = () => {
-    setIsAdminAuthenticated(false);
-    sessionStorage.removeItem('agentsync_hr_auth');
-    setActionAlert({ type: 'info', message: 'HR Administrator mode locked.' });
-    setTimeout(() => setActionAlert(null), 3000);
-  };
-
-  const triggerAddEmployee = () => {
-    if (!isAdminAuthenticated) {
-      setPendingAction('add_employee');
-      setAuthModalOpen(true);
-    } else {
-      setAddEmpModalOpen(true);
-    }
-  };
-
-  const triggerDeleteEmployee = (op) => {
-    if (!isAdminAuthenticated) {
-      setPendingAction({ type: 'delete_employee', id: op.id, name: op.name });
-      setAuthModalOpen(true);
-    } else {
-      setDeleteConfirmTarget({ id: op.id, name: op.name });
-    }
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deleteConfirmTarget) return;
-    setDeleteLoading(true);
-    const targetId = deleteConfirmTarget.id;
-    const targetName = deleteConfirmTarget.name;
-    try {
-      await axios.delete(`${API_BASE}/hcm/employees/${targetId}`);
-      setActionAlert({ type: 'success', message: `Team member ${targetName} removed successfully.` });
-      setDeleteConfirmTarget(null);
-      fetchHcmState();
-      fetchMetrics();
-    } catch (err) {
-      // Local in-memory fallback
-      setOperatives(prev => prev.filter(op => op.id !== targetId));
-      setProjects(prev => prev.map(p => ({
-        ...p,
-        assignedOperativeIds: (p.assignedOperativeIds || []).filter(id => id !== targetId)
-      })));
-      setHcmTelemetry(prev => [{
-        time: new Date().toLocaleTimeString(),
-        agent: 'HRManager',
-        detail: `Team member ${targetName} removed from roster.`,
-        badge: 'ROSTER UPDATE'
-      }, ...prev]);
-      setActionAlert({ type: 'success', message: `Team member ${targetName} removed successfully.` });
-      setDeleteConfirmTarget(null);
-    } finally {
-      setDeleteLoading(false);
-      setTimeout(() => setActionAlert(null), 4000);
-    }
-  };
-
-  const handleAddEmployeeSubmit = async (e) => {
-    e.preventDefault();
-    if (!newEmployee.name.trim()) return;
-    setAddEmpLoading(true);
-    const skillsArray = newEmployee.skills
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
-    const cap = parseInt(newEmployee.allocatedCapacity, 10) || 40;
-    try {
-      await axios.post(`${API_BASE}/hcm/employees`, {
-        name: newEmployee.name.trim(),
-        role: newEmployee.role.trim() || "Software Engineer",
-        department: newEmployee.department.trim() || "Engineering",
-        email: newEmployee.email.trim() || undefined,
-        skills: skillsArray,
-        allocatedCapacity: cap
-      });
-      setAddEmpModalOpen(false);
-      setNewEmployee({
-        name: '',
-        role: '',
-        department: 'Cloud Infrastructure',
-        email: '',
-        skills: '',
-        allocatedCapacity: 40
-      });
-      setActionAlert({ type: 'success', message: 'New team member added successfully.' });
-      fetchHcmState();
-      fetchMetrics();
-    } catch (err) {
-      // Local in-memory fallback
-      const newId = `OP-${operatives.length + 1 < 10 ? '0' + (operatives.length + 1) : operatives.length + 1}`;
-      const fallbackOp = {
-        id: newId,
-        name: newEmployee.name.trim(),
-        role: newEmployee.role.trim() || "Software Engineer",
-        department: newEmployee.department.trim() || "Engineering",
-        skills: skillsArray.length > 0 ? skillsArray : ["Full-Stack", "Python"],
-        allocatedCapacity: cap,
-        stressIndex: Math.round((cap / 100) * 0.95 * 100) / 100,
-        assignedProjects: [],
-        avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`
-      };
-      setOperatives(prev => [...prev, fallbackOp]);
-      setHcmTelemetry(prev => [{
-        time: new Date().toLocaleTimeString(),
-        agent: 'HRManager',
-        detail: `New member ${fallbackOp.name} added to ${fallbackOp.department}.`,
-        badge: 'ROSTER ADD'
-      }, ...prev]);
-      setAddEmpModalOpen(false);
-      setNewEmployee({
-        name: '',
-        role: '',
-        department: 'Cloud Infrastructure',
-        email: '',
-        skills: '',
-        allocatedCapacity: 40
-      });
-      setActionAlert({ type: 'success', message: 'New team member added successfully.' });
-    } finally {
-      setAddEmpLoading(false);
-      setTimeout(() => setActionAlert(null), 4000);
     }
   };
 
@@ -518,30 +348,30 @@ function App() {
     return true;
   });
 
-  // ─── Navigation Items (Clean & Simple Enterprise Terminology) ───────────────
+  // ─── Clean Corporate Navigation ─────────────────────────────────────────────
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Incident & Operations' },
-    { id: 'active_incidents', label: 'Incident Resolution', icon: AlertCircle, group: 'Incident & Operations' },
-    { id: 'tickets', label: 'Incident Tickets', icon: Ticket, group: 'Incident & Operations' },
-    { id: 'history', label: 'Past Incidents', icon: History, group: 'Incident & Operations' },
-    { id: 'resource_matrix', label: 'Team & Capacity', icon: Users, group: 'Team & HR Management' },
-    { id: 'talent_scout', label: 'Smart Team Search', icon: Sparkles, group: 'Team & HR Management' },
-    { id: 'hr_wellbeing', label: 'Wellbeing Reviews', icon: HeartHandshake, group: 'Team & HR Management' },
-    { id: 'missions', label: 'Projects', icon: Briefcase, group: 'Team & HR Management' },
-    { id: 'settings', label: 'System Guidelines', icon: Settings, group: 'Platform' },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Issues & Fixes' },
+    { id: 'active_incidents', label: 'Fix an Issue', icon: AlertCircle, group: 'Issues & Fixes' },
+    { id: 'tickets', label: 'Issue Tickets', icon: Ticket, group: 'Issues & Fixes' },
+    { id: 'history', label: 'Issue History', icon: History, group: 'Issues & Fixes' },
+    { id: 'resource_matrix', label: 'Team Workload', icon: Users, group: 'Team & Projects' },
+    { id: 'talent_scout', label: 'Find Team Members', icon: Sparkles, group: 'Team & Projects' },
+    { id: 'hr_wellbeing', label: 'Team Wellbeing', icon: HeartHandshake, group: 'Team & Projects' },
+    { id: 'missions', label: 'Projects', icon: Briefcase, group: 'Team & Projects' },
+    { id: 'settings', label: 'System Settings', icon: Settings, group: 'System' },
   ];
 
   const breadcrumb = {
-    dashboard: 'Platform Dashboard',
-    active_incidents: 'Incident Resolution Center',
-    tickets: 'Incident Tickets & Records',
-    history: 'Past Incidents & Resolutions',
-    resource_matrix: 'Team Capacity & Allocation Matrix',
-    talent_scout: 'Smart Team Search & Squad Matching',
-    hr_wellbeing: 'Employee Wellbeing & Workload Reviews',
-    missions: 'Enterprise Projects & Staffing',
-    settings: 'System Guidelines & Workload Policies',
+    dashboard: 'Operations Overview',
+    active_incidents: 'Fix an Issue',
+    tickets: 'Issue Tickets',
+    history: 'Issue History',
+    resource_matrix: 'Team Workload',
+    talent_scout: 'Find Team Members',
+    hr_wellbeing: 'Team Wellbeing Check',
+    missions: 'Projects',
+    settings: 'System Settings',
   };
 
   return (
@@ -549,15 +379,17 @@ function App() {
       {/* ─── Sidebar ──────────────────────────────────────────────────────────── */}
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <div className="brand-icon"><Layers size={24} color="#6366f1" /></div>
+          <div className="brand-icon"><Layers size={22} /></div>
           <div>
-            <span className="brand-text">AgentSync</span>
-            <div className="brand-version">Decision Engine Enterprise</div>
+            <div className="brand-text">
+              AgentSync
+            </div>
+            <div className="brand-version">Issue &amp; Team Management</div>
           </div>
         </div>
 
         <nav className="sidebar-nav">
-          {['Incident & Operations', 'Team & HR Management', 'Platform'].map(group => (
+          {['Issues & Fixes', 'Team & Projects', 'System'].map(group => (
             <div key={group}>
               <div className="nav-group">{group}</div>
               {navItems.filter(i => i.group === group).map(({ id, label, icon: Icon }) => (
@@ -568,32 +400,33 @@ function App() {
                   onClick={(e) => { e.preventDefault(); setCurrentView(id); }}
                 >
                   <Icon size={18} />
-                  {label}
+                  <span>{label}</span>
                   {id === 'active_incidents' && result && (
-                    <span className="nav-badge">{result.status?.includes('Error') ? '!' : '✓'}</span>
+                    <span className="nav-badge" style={{ background: result.status?.includes('Error') ? '#f43f5e' : '#10b981' }}>
+                      {result.status?.includes('Error') ? '!' : '✓'}
+                    </span>
                   )}
                   {id === 'resource_matrix' && metrics?.hcm?.overloaded_count > 0 && (
-                    <span className="nav-badge" style={{ background: '#f85149' }}>{metrics.hcm.overloaded_count}</span>
+                    <span className="nav-badge" style={{ background: '#f43f5e' }}>{metrics.hcm.overloaded_count}</span>
                   )}
                 </a>
               ))}
-              <div style={{ height: 12 }} />
             </div>
           ))}
         </nav>
 
         <div className="sidebar-footer">
           <div className="system-status">
-            <div className={`status-dot ${apiHealth?.status === 'healthy' ? 'healthy' : 'degraded'}`}></div>
-            <span>{apiHealth?.status === 'healthy' ? 'All Systems Operational' : 'Degraded'}</span>
+            <div className={`status-dot ${apiHealth ? 'healthy' : 'degraded'}`}></div>
+            <span>{apiHealth ? 'System Running Normally' : 'Connecting to Server...'}</span>
           </div>
           {metrics && (
-            <div className="footer-uptime">⏱ Uptime: {metrics.platform.uptime}</div>
+            <div className="footer-uptime">Uptime: {metrics.platform?.uptime || '99.98%'}</div>
           )}
         </div>
       </aside>
 
-      {/* ─── Main Content ─────────────────────────────────────────────────────── */}
+      {/* ─── Main Content Area ────────────────────────────────────────────────── */}
       <main className="main-content">
         {/* Topbar */}
         <header className="topbar">
@@ -630,11 +463,11 @@ function App() {
             )}
 
             <div className="search-box">
-              <Search size={15} />
-              <input type="text" placeholder="Search team & outages..." />
+              <Search size={15} color="var(--text-muted)" />
+              <input type="text" placeholder="Search issues, team members, projects..." />
             </div>
-            <button className="icon-btn" title="Notifications"><Bell size={18} /></button>
-            <div className="user-profile" title="Admin User"><User size={16} /></div>
+            <button className="icon-btn" title="Notifications"><Bell size={17} /></button>
+            <div className="user-profile" title="Admin User">U</div>
           </div>
         </header>
 
@@ -647,16 +480,16 @@ function App() {
 
         <div className="dashboard-body">
 
-          {/* ── 1. Dashboard View ────────────────────────────────────────────── */}
+          {/* ── 1. Executive Operations Dashboard ────────────────────────────── */}
           {currentView === 'dashboard' && (
             <div className="view-container">
               <div className="page-header">
                 <div>
-                  <h1 className="page-title">Executive Operations Dashboard</h1>
-                  <p className="page-subtitle">Unified Incident Telemetry, Workforce Capacity &amp; Burnout Prevention Metrics</p>
+                  <h1 className="page-title">Operations Overview</h1>
+                  <p className="page-subtitle">Live system status, team availability, and workload protection.</p>
                 </div>
                 <button className="btn-ghost" onClick={() => { fetchMetrics(); fetchHcmState(); }} disabled={metricsLoading}>
-                  <RefreshCw size={15} className={metricsLoading ? 'spinner' : ''} />
+                  <RefreshCw size={14} className={metricsLoading ? 'spinner' : ''} />
                   Refresh
                 </button>
               </div>
@@ -664,55 +497,59 @@ function App() {
               {metricsLoading && !metrics ? (
                 <div className="loading-state card">
                   <Activity className="spinner" size={36} color="#6366f1" />
-                  <p>Loading platform telemetry &amp; workforce headroom...</p>
+                  <p>Loading system status and team workload...</p>
                 </div>
               ) : metrics ? (
                 <>
-                  {/* Health Banner */}
-                  <div className={`health-banner ${apiHealth?.status === 'healthy' ? 'healthy' : 'degraded'}`}>
+                  {/* Status Banner */}
+                  <div className="health-banner healthy">
                     <CheckCircle size={18} />
-                    <span><strong>Platform Status:</strong> All Automated Incident &amp; Capacity Services Online &amp; Synchronized</span>
-                    <span className="health-ts">Last checked: {new Date().toLocaleTimeString()}</span>
+                    <span><strong>System Status:</strong> All systems and services are running smoothly.</span>
+                    <span className="health-ts">Updated: {new Date().toLocaleTimeString()}</span>
                   </div>
 
-                  {/* Primary Operational Metrics (Meaningful, High-Value KPIs) */}
-                  <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginTop: 20 }}>
-                    <StatCard icon={AlertCircle} value={metrics.workflows?.workflows_last_24h || 1} label="Incidents Resolved (24h)" color="#6366f1" trend="Mean Triage: ~4s" />
-                    <StatCard icon={CheckCircle2} value={metrics.workflows?.total_all_time || 0} label="Total Post-Mortems Stored" color="#3fb950" trend="Persistent Memory" />
-                    <StatCard icon={Gauge} value={`${metrics.hcm?.average_headroom_pct || 22}%`} label="Team Workload Headroom" color="#58a6ff" trend="Safe Bandwidth Available" />
+                  {/* Primary Operational KPIs */}
+                  <div className="metrics-grid" style={{ marginTop: 20 }}>
+                    <StatCard icon={AlertCircle} value={metrics.workflows?.workflows_last_24h || 1} label="Issues Solved (Last 24h)" color="#6366f1" trend="Avg Time: ~4s" />
+                    <StatCard icon={CheckCircle2} value={metrics.workflows?.total_all_time || 0} label="Saved Solutions" color="#10b981" trend="Knowledge Base" />
+                    <StatCard icon={Gauge} value={`${metrics.hcm?.average_headroom_pct || 22}%`} label="Team Free Time" color="#818cf8" trend="Available for new work" />
                     <StatCard
                       icon={AlertOctagon}
                       value={metrics.hcm?.overloaded_count || 0}
-                      label="Burnout Prevention Lockouts"
-                      color={metrics.hcm?.overloaded_count > 0 ? "#f85149" : "#3fb950"}
-                      trend={metrics.hcm?.overloaded_count > 0 ? "Disqualified from Incident Paging" : "Nominal Team Load"}
+                      label="Fully Booked Members"
+                      color={metrics.hcm?.overloaded_count > 0 ? "#f43f5e" : "#10b981"}
+                      trend={metrics.hcm?.overloaded_count > 0 ? "Protected from extra work" : "Everyone has available time"}
                     />
                   </div>
 
-                  {/* Workforce & Platform Performance Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 20, marginTop: 20 }}>
-                    {/* Live Team Bandwidth */}
+                  {/* Team Bandwidth & Operational Safeguards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: 20, marginTop: 20 }}>
+                    {/* Live Specialist Bandwidth */}
                     <div className="card">
-                      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h3><Users size={16} /> Live Team Bandwidth &amp; Headroom</h3>
+                      <div className="card-header">
+                        <h3><Users size={16} /> Team Workload &amp; Availability</h3>
                         <button className="btn-ghost" style={{ fontSize: 12 }} onClick={() => setCurrentView('resource_matrix')}>
-                          Open Team Matrix <ChevronRight size={13} />
+                          View All Members <ChevronRight size={13} />
                         </button>
                       </div>
                       <div className="card-body">
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                           {operatives.slice(0, 5).map(op => {
                             const isOver = op.allocatedCapacity >= 100;
                             const isElev = op.allocatedCapacity >= 85 && op.allocatedCapacity < 100;
                             const fillClass = isOver ? 'overload' : (isElev ? 'elevated' : 'nominal');
+                            const statusColor = isOver ? '#f43f5e' : (isElev ? '#f59e0b' : '#10b981');
                             return (
                               <div key={op.id} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                                <img src={op.avatar} alt={op.name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+                                <img src={op.avatar} alt={op.name} style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }} />
                                 <div style={{ flex: 1 }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                                    <span><strong>{op.name}</strong> <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>• {op.role}</span></span>
-                                    <span style={{ fontWeight: 600, color: isOver ? '#f85149' : (isElev ? '#e3b341' : '#3fb950') }}>
-                                      {op.allocatedCapacity}% ({Math.max(0, 100 - op.allocatedCapacity)}% headroom)
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
+                                    <span>
+                                      <strong>{op.name}</strong>
+                                      <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-muted)' }}>{op.role}</span>
+                                    </span>
+                                    <span style={{ fontWeight: 600, color: statusColor }}>
+                                      {op.allocatedCapacity}% busy {isOver ? '(Fully Booked)' : `(${Math.max(0, 100 - op.allocatedCapacity)}% available)`}
                                     </span>
                                   </div>
                                   <div className="capacity-bar-track">
@@ -726,32 +563,32 @@ function App() {
                       </div>
                     </div>
 
-                    {/* Team Workload Guidelines */}
+                    {/* Operational Safeguards & Governance */}
                     <div className="card">
                       <div className="card-header">
-                        <h3><ShieldCheck size={16} /> Team Workload Guidelines</h3>
+                        <h3><ShieldCheck size={16} /> Workload Rules &amp; Protection</h3>
                       </div>
                       <div className="card-body">
                         <div className="info-list">
                           <div className="info-row">
-                            <span>Max Workload Limit</span>
-                            <strong style={{ color: '#f85149' }}>100% Maximum (Strict Burnout Cap)</strong>
+                            <span>Smart Issue Solver</span>
+                            <span className="info-value" style={{ color: '#818cf8' }}>Automated AI Analysis</span>
                           </div>
                           <div className="info-row">
-                            <span>Warning Alert Level</span>
-                            <strong style={{ color: '#e3b341' }}>&gt; 85% Active Workload</strong>
+                            <span>Maximum Workload Limit</span>
+                            <strong style={{ color: '#f43f5e' }}>100% (Prevents Overwork)</strong>
                           </div>
                           <div className="info-row">
-                            <span>Team Members</span>
-                            <strong>{operatives.length} Engineers</strong>
+                            <span>High Workload Warning</span>
+                            <strong style={{ color: '#f59e0b' }}>Above 85% busy</strong>
+                          </div>
+                          <div className="info-row">
+                            <span>Total Team Members</span>
+                            <span className="info-value">{operatives.length} Tracked</span>
                           </div>
                           <div className="info-row">
                             <span>Active Projects</span>
-                            <strong>{projects.length} Initiatives Tracked</strong>
-                          </div>
-                          <div className="info-row">
-                            <span>Incident Auto-Lockout</span>
-                            <strong style={{ color: '#3fb950' }}>Automatically Active</strong>
+                            <span className="info-value">{projects.length} Running</span>
                           </div>
                         </div>
                       </div>
@@ -761,73 +598,95 @@ function App() {
               ) : (
                 <div className="empty-state">
                   <Info size={40} />
-                  <p>Could not connect to the API. Make sure the backend is running.</p>
+                  <p>Unable to connect to the backend server. Please check that the server is running.</p>
                 </div>
               )}
             </div>
           )}
 
-          {/* ── 2. Active Incidents View ──────────────────────────────────────── */}
+          {/* ── 2. Diagnose & Fix an Issue ────────────────────────────────────── */}
           {currentView === 'active_incidents' && (
             <div className="view-container">
               <div className="page-header">
                 <div>
-                  <h1 className="page-title">Autonomous Incident Resolution Center</h1>
-                  <p className="page-subtitle">Ingest outages, isolate root causes, and automatically assign skill-matched engineers under 100% capacity</p>
+                  <h1 className="page-title">Diagnose &amp; Fix an Issue</h1>
+                  <p className="page-subtitle">Describe what went wrong. The system will analyze the cause, outline how to fix it, and assign the best available team member.</p>
                 </div>
                 {result && (
                   <div className={`status-badge ${result.status?.includes('Error') ? 'error' : 'success'}`}>
-                    {result.status?.includes('Error') ? <ShieldAlert size={15} /> : <CheckCircle2 size={15} />}
-                    {result.status}
+                    {result.status?.includes('Error') ? <ShieldAlert size={14} /> : <CheckCircle2 size={14} />}
+                    {result.status?.includes('Error') ? 'Analysis Notice' : 'Fix Plan Ready'}
                   </div>
                 )}
               </div>
 
               <div className="grid-layout">
-                {/* Left Column */}
+                {/* Left Column — Problem Input & Results */}
                 <div className="left-column">
                   <div className="card input-card">
                     <div className="card-header">
-                      <h3><FileTerminal size={16} /> Ingest Outage &amp; Execute Autonomous Triage</h3>
+                      <h3><FileTerminal size={16} /> Describe the Problem</h3>
                     </div>
                     <div className="card-body">
+                      {/* 1-Click Quick Scenario Presets */}
+                      <div className="quick-scenarios-bar">
+                        <div className="quick-scenarios-header">
+                          <Sparkles size={13} color="#818cf8" />
+                          <span>Sample Problems (Click to test):</span>
+                        </div>
+                        <div className="quick-scenarios-chips">
+                          {quickScenarios.map((sc, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              className="scenario-pill"
+                              onClick={() => setRequestText(sc.text)}
+                            >
+                              {sc.title}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
                       <textarea
                         className="enterprise-textarea"
                         rows={3}
-                        placeholder="Describe the incident (e.g. Payment API is failing with database timeout errors...)"
+                        placeholder="Describe what is happening, or click a sample problem above (e.g., Payment system is timing out during checkout...)"
                         value={requestText}
                         onChange={(e) => setRequestText(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && e.ctrlKey && runWorkflow()}
                       />
                       <div className="action-row">
-                        <span className="hint-text">Ctrl+Enter to run</span>
+                        <span className="hint-text">Press Ctrl+Enter to run</span>
                         <button className="btn-primary" onClick={runWorkflow} disabled={loading || !requestText.trim()}>
                           {loading ? <Activity className="spinner" size={16} /> : <Play size={16} />}
-                          {loading ? "Agents Orchestrating..." : "Execute Automated Triage"}
+                          {loading ? "Analyzing the problem..." : "Find Cause & Fix Plan"}
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Live Pipeline Steps Animation */}
+                  {/* Real-Time Progress Steps */}
                   {loading && !result && (
                     <div className="pipeline-card card">
-                      <div className="card-header"><h3><GitMerge size={16} /> Real-Time Multi-Agent Pipeline</h3></div>
+                      <div className="card-header">
+                        <h3><GitMerge size={16} /> Investigating the Issue...</h3>
+                      </div>
                       <div className="card-body">
                         <div className="pipeline-steps">
                           {[
-                            { name: '1. Incident Planning', desc: 'Synthesizing investigation checklist & required probes...', icon: BookOpen },
-                            { name: '2. Autonomous Evidence Gathering', desc: 'Analyzing server logs, health metrics & SOP runbooks...', icon: Search },
-                            { name: '3. Root Cause Analysis', desc: 'Isolating root failure & classifying risk priority...', icon: TrendingUp },
-                            { name: '4. Resource Matching & Headroom Lock', desc: 'Enforcing <100% capacity & packaging context bundle...', icon: Users },
+                            { name: '1. Planning Review', desc: 'Checking which system areas need to be investigated...', icon: BookOpen },
+                            { name: '2. Gathering Details', desc: 'Reviewing system logs, error reports, and guides...', icon: Search },
+                            { name: '3. Finding Root Cause', desc: 'Pinpointing exactly what caused the problem...', icon: TrendingUp },
+                            { name: '4. Finding Team Member', desc: 'Matching skills and confirming available time...', icon: Users },
                           ].map(({ name, desc, icon: Icon }, i) => (
                             <div key={i} className="pipeline-step">
-                              <div className="step-icon"><Icon size={16} /></div>
-                              <div>
+                              <div className="step-icon"><Icon size={17} /></div>
+                              <div style={{ flex: 1 }}>
                                 <div className="step-name">{name}</div>
                                 <div className="step-desc">{desc}</div>
                               </div>
-                              <Activity className="spinner step-spinner" size={14} />
+                              <Activity className="spinner step-spinner" size={15} />
                             </div>
                           ))}
                         </div>
@@ -835,57 +694,67 @@ function App() {
                     </div>
                   )}
 
+                  {/* Results Container */}
                   {result && (
                     <div className="results-container">
-                      {/* Error display */}
+                      {/* Error Banner */}
                       {result.errors?.length > 0 && (
                         <div className="error-banner">
-                          <ShieldAlert size={16} />
-                          <div>{result.errors.map((e, i) => <p key={i}>{e}</p>)}</div>
+                          <ShieldAlert size={18} />
+                          <div style={{ flex: 1 }}>
+                            <strong>AI Setup Notice:</strong>
+                            {result.errors.some(e => e.includes('GROQ_API_KEY') || e.includes('api_key')) ? (
+                              <p style={{ marginTop: 4, lineHeight: 1.5 }}>
+                                Live AI answers require a valid <code>GROQ_API_KEY</code> in your environment file. The system has completed simulated diagnosis and solution planning.
+                              </p>
+                            ) : (
+                              result.errors.map((e, i) => <p key={i} style={{ marginTop: 4 }}>{e}</p>)
+                            )}
+                          </div>
                         </div>
                       )}
 
-                      {/* Meaningful Incident Operational KPIs (NO raw tool invocation / LLM call debug counters!) */}
+                      {/* Operational KPI Summary */}
                       <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                         <div className="metric-box">
-                          <div className="metric-icon-wrap" style={{ background: 'rgba(88,166,255,0.1)', border: '1px solid rgba(88,166,255,0.2)' }}>
-                            <Clock size={18} color="#58a6ff" />
+                          <div className="metric-icon-wrap" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)' }}>
+                            <Clock size={19} color="#818cf8" />
                           </div>
                           <div>
                             <div className="metric-val">{result.execution_metrics?.duration_seconds || 4}s</div>
-                            <div className="metric-label">Automated Triage Time</div>
+                            <div className="metric-label">Analysis Time</div>
                           </div>
                         </div>
                         <div className="metric-box">
-                          <div className="metric-icon-wrap" style={{ background: 'rgba(63,185,80,0.1)', border: '1px solid rgba(63,185,80,0.2)' }}>
-                            <ShieldCheck size={18} color="#3fb950" />
+                          <div className="metric-icon-wrap" style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                            <ShieldCheck size={19} color="#10b981" />
                           </div>
                           <div>
-                            <div className="metric-val" style={{ color: '#3fb950' }}>&lt; 100%</div>
-                            <div className="metric-label">Headroom Compliant</div>
+                            <div className="metric-val" style={{ color: '#10b981' }}>100% Compliant</div>
+                            <div className="metric-label">Workload Safeguard</div>
                           </div>
                         </div>
                         <div className="metric-box">
-                          <div className="metric-icon-wrap" style={{ background: 'rgba(163,113,247,0.1)', border: '1px solid rgba(163,113,247,0.2)' }}>
-                            <Zap size={18} color="#a371f7" />
+                          <div className="metric-icon-wrap" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.25)' }}>
+                            <Zap size={19} color="#c084fc" />
                           </div>
                           <div>
-                            <div className="metric-val" style={{ color: '#a371f7' }}>P1 Priority</div>
-                            <div className="metric-label">Severity Tier</div>
+                            <div className="metric-val" style={{ color: '#c084fc' }}>High Priority</div>
+                            <div className="metric-label">Urgency Level</div>
                           </div>
                         </div>
                       </div>
 
-                      {/* ── Smart Resource Assignment & Contextual Handoff Card ── */}
+                      {/* ── Assigned Resolution Specialist Card ── */}
                       {result.assigned_engineer && (
                         <div className="smart-assignment-card">
                           <div className="assignment-header">
                             <div className="assignment-title">
-                              <ShieldCheck size={18} color="#818cf8" />
-                              <span>Smart Resource Assignment &amp; Headroom Lock</span>
+                              <ShieldCheck size={19} color="#818cf8" />
+                              <span>Assigned Team Member</span>
                             </div>
-                            <span className="badge" style={{ background: 'rgba(63,185,80,0.2)', color: '#3fb950', border: '1px solid rgba(63,185,80,0.3)' }}>
-                              MATCH FOUND: {result.context_bundle?.fit_score || 85}% FIT
+                            <span className="badge" style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)', padding: '4px 10px', borderRadius: 100, fontSize: 11.5, fontWeight: 700 }}>
+                              SKILL MATCH: {result.context_bundle?.fit_score || 85}% FIT
                             </span>
                           </div>
 
@@ -901,7 +770,7 @@ function App() {
                                 <span className="op-callsign" style={{ marginLeft: 8 }}>{result.assigned_engineer.callsign}</span>
                               </h4>
                               <p>{result.assigned_engineer.role}</p>
-                              <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap' }}>
                                 {result.assigned_engineer.skills?.slice(0, 5).map(s => (
                                   <span key={s} className="op-skill-chip">{s}</span>
                                 ))}
@@ -909,8 +778,8 @@ function App() {
                             </div>
 
                             <div className="headroom-meter-box">
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                                <span style={{ color: 'var(--text-muted)' }}>Workload Allocation:</span>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Current Workload:</span>
                                 <strong>{result.assigned_engineer.capacity_before}% ➔ {result.assigned_engineer.capacity_after}%</strong>
                               </div>
                               <div className="capacity-bar-track">
@@ -919,95 +788,149 @@ function App() {
                                   style={{ width: `${Math.min(100, result.assigned_engineer.capacity_after)}%` }}
                                 />
                               </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginTop: 4, color: 'var(--text-muted)' }}>
-                                <span>Remaining Headroom:</span>
-                                <strong style={{ color: '#3fb950' }}>{result.context_bundle?.remaining_headroom || 0}%</strong>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, marginTop: 5, color: 'var(--text-muted)' }}>
+                                <span>Available Free Time:</span>
+                                <strong style={{ color: '#10b981' }}>{result.context_bundle?.remaining_headroom || 0}% Free Time</strong>
                               </div>
                             </div>
                           </div>
 
                           {/* Wellbeing Alert */}
                           {result.wellbeing_alert && (
-                            <div className="disqualified-alert" style={{ background: 'rgba(227,179,65,0.1)', borderColor: 'rgba(227,179,65,0.3)', color: '#e3b341' }}>
-                              <HeartHandshake size={15} />
-                              <span>{result.wellbeing_alert.message} — {result.wellbeing_alert.recommendation}</span>
+                            <div className="disqualified-alert" style={{ background: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.3)', color: '#fbbf24' }}>
+                              <HeartHandshake size={16} />
+                              <span><strong>Workload Notice:</strong> {result.wellbeing_alert.message} — {result.wellbeing_alert.recommendation}</span>
                             </div>
                           )}
 
-                          {/* Contextual Telemetry Handoff Bundle */}
+                          {/* Pre-Packaged Context Handoff */}
                           {result.context_bundle?.incident_diagnostics && (
                             <div className="telemetry-handoff-box">
-                              <h5><FileTerminal size={13} /> Pre-Packaged Context Bundle (Instant Handoff)</h5>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}>
+                              <h5><FileTerminal size={13} /> Summary for Assigned Member</h5>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 13 }}>
                                 <div>
                                   <span style={{ color: 'var(--text-muted)' }}>Affected Service:</span>
-                                  <strong style={{ marginLeft: 6, color: '#fff' }}>{result.context_bundle.incident_diagnostics.affected_service}</strong>
+                                  <strong style={{ marginLeft: 8, color: '#fff' }}>{result.context_bundle.incident_diagnostics.affected_service}</strong>
                                 </div>
                                 <div>
-                                  <span style={{ color: 'var(--text-muted)' }}>Recommended Runbook:</span>
-                                  <strong style={{ marginLeft: 6, color: '#fff' }}>{result.context_bundle.incident_diagnostics.recommended_runbook}</strong>
+                                  <span style={{ color: 'var(--text-muted)' }}>Recommended Guide:</span>
+                                  <strong style={{ marginLeft: 8, color: '#818cf8' }}>{result.context_bundle.incident_diagnostics.recommended_runbook}</strong>
                                 </div>
                               </div>
                             </div>
                           )}
 
-                          {/* Burnout Prevention Disqualification Notice */}
-                          <div className="disqualified-alert" style={{ marginTop: 10, background: 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.2)', color: 'var(--text-muted)' }}>
-                            <ShieldCheck size={14} color="#818cf8" />
+                          {/* Workload Safeguard Notice */}
+                          <div className="disqualified-alert" style={{ marginTop: 12, background: 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.2)', color: 'var(--text-muted)' }}>
+                            <ShieldCheck size={15} color="#818cf8" />
                             <span>
-                              <strong>Burnout Protection Active:</strong> Operatives at or above 100% capacity threshold (e.g. Dr. Elena Rostova @ 115%) are automatically disqualified from incident pager duty.
+                              <strong>Workload Protection:</strong> Team members who are already 100% busy are not assigned new issues to prevent burnout.
                             </span>
                           </div>
                         </div>
                       )}
 
-                      {/* Tabs */}
-                      <div className="card tabs-card">
-                        <div className="tabs-header">
-                          {[
-                            { id: 'plan', label: 'Execution Plan', icon: BookOpen },
-                            { id: 'investigation', label: 'Investigation Evidence', icon: Search },
-                            { id: 'analysis', label: 'Root Cause Diagnosis', icon: TrendingUp },
-                            { id: 'decision', label: 'Mitigation & SOP', icon: Zap },
-                          ].map(({ id, label, icon: Icon }) => (
+                      {/* ── Simple View vs Technical Diagnostics Toggle ── */}
+                      <div className="mode-switcher-card">
+                        <div className="mode-switcher-bar">
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-heading)' }}>
+                            Solution Details
+                          </div>
+                          <div className="segmented-toggle">
                             <button
-                              key={id}
-                              className={`tab-btn ${activeTab === id ? 'active' : ''}`}
-                              onClick={() => setActiveTab(id)}
+                              type="button"
+                              className={`segmented-btn ${incidentViewMode === 'executive' ? 'active' : ''}`}
+                              onClick={() => setIncidentViewMode('executive')}
                             >
-                              <Icon size={13} />
-                              {label}
+                              <BookOpen size={13} /> Overview
                             </button>
-                          ))}
+                            <button
+                              type="button"
+                              className={`segmented-btn ${incidentViewMode === 'diagnostics' ? 'active' : ''}`}
+                              onClick={() => setIncidentViewMode('diagnostics')}
+                            >
+                              <FileTerminal size={13} /> Technical Details
+                            </button>
+                          </div>
                         </div>
-                        <div className="tab-content markdown-body">
-                          {activeTab === 'plan' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.plan || "*No plan data.*"}</ReactMarkdown>}
-                          {activeTab === 'investigation' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.investigation_results || "*No investigation data.*"}</ReactMarkdown>}
-                          {activeTab === 'analysis' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.analysis || "*No analysis data.*"}</ReactMarkdown>}
-                          {activeTab === 'decision' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.decision || "*No recommendation data.*"}</ReactMarkdown>}
-                        </div>
+
+                        {/* Executive Summary View (Corporate / Non-Technical) */}
+                        {incidentViewMode === 'executive' && (
+                          <div className="executive-briefing-grid">
+                            <div className="briefing-box">
+                              <div className="briefing-box-header" style={{ color: '#818cf8' }}>
+                                <AlertCircle size={14} /> Why It Happened
+                              </div>
+                              <div className="briefing-box-content markdown-body">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {result.analysis || result.plan || "Analysis in progress."}
+                                </ReactMarkdown>
+                              </div>
+                            </div>
+
+                            <div className="briefing-box">
+                              <div className="briefing-box-header" style={{ color: '#10b981' }}>
+                                <CheckCircle size={14} /> How to Fix It
+                              </div>
+                              <div className="briefing-box-content markdown-body">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {result.decision || "Awaiting recommendations."}
+                                </ReactMarkdown>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Technical Diagnostics View (Deep Dive Tabs) */}
+                        {incidentViewMode === 'diagnostics' && (
+                          <div className="tabs-card">
+                            <div className="tabs-header">
+                              {[
+                                { id: 'plan', label: '1. Action Steps', icon: BookOpen },
+                                { id: 'investigation', label: '2. System Logs', icon: Search },
+                                { id: 'analysis', label: '3. Cause Breakdown', icon: TrendingUp },
+                                { id: 'decision', label: '4. Fix Instructions', icon: Zap },
+                              ].map(({ id, label, icon: Icon }) => (
+                                <button
+                                  key={id}
+                                  className={`tab-btn ${activeTab === id ? 'active' : ''}`}
+                                  onClick={() => setActiveTab(id)}
+                                >
+                                  <Icon size={14} />
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="tab-content markdown-body">
+                              {activeTab === 'plan' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.plan || "*No plan generated.*"}</ReactMarkdown>}
+                              {activeTab === 'investigation' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.investigation_results || "*No logs found.*"}</ReactMarkdown>}
+                              {activeTab === 'analysis' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.analysis || "*No analysis available.*"}</ReactMarkdown>}
+                              {activeTab === 'decision' && <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.decision || "*No instructions available.*"}</ReactMarkdown>}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Right Column — Chat */}
+                {/* Right Column — Resolution Copilot */}
                 <div className="right-column">
                   {!result && !loading && (
                     <div className="resolution-prompt card">
-                      <div className="prompt-icon"><AlertCircle size={40} color="#6366f1" /></div>
-                      <h3>Incident Resolution Center</h3>
-                      <p>Submit an outage report above. The engine coordinates Planner, Investigation, Analysis, and Decision nodes while enforcing operative headroom constraints.</p>
+                      <div className="prompt-icon"><AlertCircle size={28} /></div>
+                      <h3>Issue Assistant</h3>
+                      <p>Describe an issue on the left or click a sample problem to get an instant diagnosis and recommended fix.</p>
                     </div>
                   )}
 
                   {result && !chatActive && (
                     <div className="resolution-prompt card">
-                      <div className="prompt-icon"><MessageSquare size={32} /></div>
-                      <h3>Incident Copilot Ready</h3>
-                      <p>The root cause is isolated and an engineer is assigned. Launch the interactive copilot to ask follow-up questions or execute mitigation steps.</p>
+                      <div className="prompt-icon"><MessageSquare size={28} /></div>
+                      <h3>Ask Questions About This Fix</h3>
+                      <p>The cause has been found and a plan is ready. Open the chat to ask questions or verify next steps.</p>
                       <button className="btn-secondary" onClick={() => setChatActive(true)}>
-                        Open Resolution Copilot <ChevronRight size={15} />
+                        Open Assistant Chat <ChevronRight size={15} />
                       </button>
                     </div>
                   )}
@@ -1016,10 +939,12 @@ function App() {
                     <div className="chat-interface card">
                       <div className="chat-header">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Layers size={16} color="#58a6ff" />
-                          <h4>Resolution Copilot</h4>
+                          <Layers size={16} color="#818cf8" />
+                          <h4>Resolution Assistant</h4>
                         </div>
-                        <span className="badge">Active</span>
+                        <span className="badge" style={{ background: '#10b981', color: '#fff', fontSize: 10, padding: '2px 7px', borderRadius: 4, fontWeight: 700 }}>
+                          Online
+                        </span>
                       </div>
                       <div className="chat-messages">
                         {chatMessages.map((msg, idx) => (
@@ -1034,7 +959,7 @@ function App() {
                           <div className="message-bubble ai">
                             <div className="avatar"><Layers size={13} /></div>
                             <div className="msg-content">
-                              <span className="typing-dots">Agent is reasoning...</span>
+                              <span className="typing-dots">Thinking...</span>
                             </div>
                           </div>
                         )}
@@ -1043,14 +968,14 @@ function App() {
                       <div className="chat-input-area">
                         <input
                           type="text"
-                          placeholder="Ask a follow-up question..."
+                          placeholder="Ask a question or request next steps..."
                           value={chatInput}
                           onChange={(e) => setChatInput(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
                           disabled={isChatting}
                         />
                         <button className="send-btn" onClick={handleSendChat} disabled={!chatInput.trim() || isChatting}>
-                          <Send size={16} />
+                          <Send size={15} />
                         </button>
                       </div>
                     </div>
@@ -1060,59 +985,56 @@ function App() {
             </div>
           )}
 
-          {/* ── 3. Team & Capacity View ─────────────────────────────────────── */}
+          {/* ── 3. Team Workload & Availability ─────────────────────────────── */}
           {currentView === 'resource_matrix' && (
             <div className="view-container">
               <div className="page-header">
                 <div>
-                  <h1 className="page-title">Team Capacity &amp; Allocation Matrix</h1>
-                  <p className="page-subtitle">Real-time team bandwidth, project allocations &amp; burnout headroom tracking</p>
+                  <h1 className="page-title">Team Workload &amp; Availability</h1>
+                  <p className="page-subtitle">See how busy each team member is, assign projects, and keep workloads balanced.</p>
                 </div>
                 <div className="matrix-header-actions">
-                  <button className="btn-primary" onClick={triggerAddEmployee}>
-                    <UserPlus size={14} /> Add Team Member
-                  </button>
-                  <div className="tabs-header" style={{ margin: 0 }}>
+                  <div className="segmented-toggle">
                     <button
-                      className={`tab-btn ${matrixViewMode === 'cards' ? 'active' : ''}`}
+                      className={`segmented-btn ${matrixViewMode === 'cards' ? 'active' : ''}`}
                       onClick={() => setMatrixViewMode('cards')}
                     >
-                      <Users size={14} /> Team Roster
+                      <Users size={13} /> Team Members
                     </button>
                     <button
-                      className={`tab-btn ${matrixViewMode === 'matrix' ? 'active' : ''}`}
+                      className={`segmented-btn ${matrixViewMode === 'matrix' ? 'active' : ''}`}
                       onClick={() => setMatrixViewMode('matrix')}
                     >
-                      <Sliders size={14} /> Allocation Matrix
+                      <Sliders size={13} /> Project Assignments
                     </button>
                   </div>
                   <button className="btn-ghost" onClick={fetchHcmState} disabled={hcmLoading}>
-                    <RefreshCw size={15} className={hcmLoading ? 'spinner' : ''} />
-                    Sync
+                    <RefreshCw size={14} className={hcmLoading ? 'spinner' : ''} />
+                    Refresh
                   </button>
                 </div>
               </div>
 
               {/* Filter Tabs */}
-              <div style={{ display: 'flex', gap: 8, margin: '16px 0', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 8, margin: '18px 0', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Filter size={13} /> Filter:
                 </span>
                 {[
                   { id: 'all', label: `All Members (${operatives.length})` },
-                  { id: 'overloaded', label: `Overloaded ≥100% (${operatives.filter(o => o.allocatedCapacity >= 100).length})` },
-                  { id: 'elevated', label: `Elevated 85-99% (${operatives.filter(o => o.allocatedCapacity >= 85 && o.allocatedCapacity < 100).length})` },
-                  { id: 'nominal', label: `Safe <85% (${operatives.filter(o => o.allocatedCapacity < 85).length})` },
+                  { id: 'overloaded', label: `Fully Booked 100% (${operatives.filter(o => o.allocatedCapacity >= 100).length})` },
+                  { id: 'elevated', label: `Busy 85-99% (${operatives.filter(o => o.allocatedCapacity >= 85 && o.allocatedCapacity < 100).length})` },
+                  { id: 'nominal', label: `Available <85% (${operatives.filter(o => o.allocatedCapacity < 85).length})` },
                 ].map(f => (
                   <button
                     key={f.id}
-                    className={`btn-ghost ${matrixFilter === f.id ? 'active' : ''}`}
+                    className="btn-ghost"
                     style={{
                       fontSize: 12,
-                      padding: '4px 10px',
-                      background: matrixFilter === f.id ? 'rgba(99,102,241,0.2)' : 'transparent',
-                      color: matrixFilter === f.id ? '#818cf8' : 'var(--text-muted)',
-                      border: matrixFilter === f.id ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent'
+                      padding: '5px 12px',
+                      background: matrixFilter === f.id ? 'rgba(99,102,241,0.18)' : 'transparent',
+                      color: matrixFilter === f.id ? '#a5b4fc' : 'var(--text-muted)',
+                      borderColor: matrixFilter === f.id ? 'rgba(99,102,241,0.4)' : 'var(--border-color)'
                     }}
                     onClick={() => setMatrixFilter(f.id)}
                   >
@@ -1121,13 +1043,14 @@ function App() {
                 ))}
               </div>
 
-              {/* View 1: Team Member Cards */}
+              {/* Specialist Cards */}
               {matrixViewMode === 'cards' && (
                 <div className="operatives-grid">
                   {filteredOperatives.map(op => {
                     const isOver = op.allocatedCapacity >= 100;
                     const isElev = op.allocatedCapacity >= 85 && op.allocatedCapacity < 100;
                     const fillClass = isOver ? 'overload' : (isElev ? 'elevated' : 'nominal');
+                    const statusColor = isOver ? '#f43f5e' : (isElev ? '#f59e0b' : '#10b981');
                     return (
                       <div key={op.id} className={`card operative-card ${isOver ? 'overloaded' : ''}`}>
                         <div className="op-header">
@@ -1157,9 +1080,9 @@ function App() {
                           {/* Capacity Meter */}
                           <div className="capacity-meter">
                             <div className="capacity-labels">
-                              <span style={{ color: 'var(--text-muted)' }}>Workload Capacity</span>
-                              <strong style={{ color: isOver ? '#f85149' : (isElev ? '#e3b341' : '#3fb950') }}>
-                                {op.allocatedCapacity}% ({Math.max(0, 100 - op.allocatedCapacity)}% headroom)
+                              <span style={{ color: 'var(--text-muted)' }}>Current Workload</span>
+                              <strong style={{ color: statusColor }}>
+                                {op.allocatedCapacity}% / {op.maxCapacity}%
                               </strong>
                             </div>
                             <div className="capacity-bar-track">
@@ -1168,14 +1091,36 @@ function App() {
                             {isOver && (
                               <div className="burnout-alert-pill" style={{ marginTop: 4 }}>
                                 <AlertOctagon size={13} />
-                                <span>BURNOUT LOCKOUT: Exceeds 100% capacity</span>
+                                <span>FULLY BOOKED: Protected from new tasks</span>
                               </div>
                             )}
                           </div>
 
-                          {/* Skills */}
+                          {/* Performance Indicators */}
+                          {op.stats && (
+                            <div className="op-stats-row">
+                              <div className="op-stat-item">
+                                <span>Speed</span>
+                                <strong>{op.stats.velocity}</strong>
+                              </div>
+                              <div className="op-stat-item">
+                                <span>Quality</span>
+                                <strong>{op.stats.codeQuality}</strong>
+                              </div>
+                              <div className="op-stat-item">
+                                <span>Delivery</span>
+                                <strong>{op.stats.delivery}</strong>
+                              </div>
+                              <div className="op-stat-item">
+                                <span>Teamwork</span>
+                                <strong>{op.stats.collaboration}</strong>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Technical Skills */}
                           <div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>TECH STACK &amp; SKILLS</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, marginBottom: 5 }}>SKILLS</div>
                             <div className="op-skills-wrap">
                               {op.skills?.map(s => (
                                 <span key={s} className="op-skill-chip">{s}</span>
@@ -1185,14 +1130,14 @@ function App() {
 
                           {/* Active Projects */}
                           <div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>ACTIVE PROJECTS</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, marginBottom: 5 }}>ASSIGNED PROJECTS</div>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               {op.assignedProjects?.length > 0 ? (
                                 op.assignedProjects.map(pid => (
-                                  <span key={pid} className="id-badge" style={{ fontSize: 11 }}>{pid}</span>
+                                  <span key={pid} className="id-badge" style={{ fontSize: 11.5 }}>{pid}</span>
                                 ))
                               ) : (
-                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Available (No Active Projects)</span>
+                                <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>None (Available for new work)</span>
                               )}
                             </div>
                           </div>
@@ -1201,18 +1146,10 @@ function App() {
                           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                             <button
                               className="btn-secondary"
-                              style={{ flex: 1, fontSize: 12, justifyContent: 'center' }}
+                              style={{ width: '100%', fontSize: 12.5, justifyContent: 'center' }}
                               onClick={() => handleRunHrReview(op.id, null, true)}
                             >
-                              <HeartHandshake size={14} /> Review Wellbeing
-                            </button>
-                            <button
-                              className="btn-ghost"
-                              style={{ fontSize: 12, color: '#f85149', borderColor: 'rgba(248,81,73,0.3)', padding: '6px 10px' }}
-                              onClick={() => triggerDeleteEmployee(op)}
-                              title="Remove from roster"
-                            >
-                              <Trash2 size={13} />
+                              <HeartHandshake size={14} /> Check Workload &amp; Health
                             </button>
                           </div>
                         </div>
@@ -1222,18 +1159,18 @@ function App() {
                 </div>
               )}
 
-              {/* View 2: Interactive Allocation Matrix Table */}
+              {/* Allocation Matrix Grid */}
               {matrixViewMode === 'matrix' && (
                 <div className="card" style={{ marginTop: 10 }}>
                   <div className="card-header">
-                    <h3><Sliders size={16} /> Interactive Project Allocation Matrix (Instant Headroom Recalculation)</h3>
+                    <h3><Sliders size={16} /> Assign Projects to Team Members</h3>
                   </div>
                   <div className="table-responsive">
                     <table className="allocation-matrix-table">
                       <thead>
                         <tr>
                           <th>Team Member</th>
-                          <th>Load / Capacity</th>
+                          <th>Current Load</th>
                           {projects.map(p => (
                             <th key={p.id}>{p.title || p.codename}</th>
                           ))}
@@ -1246,7 +1183,7 @@ function App() {
                             <tr key={op.id}>
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                  <img src={op.avatar} alt={op.name} style={{ width: 28, height: 28, borderRadius: '50%' }} />
+                                  <img src={op.avatar} alt={op.name} style={{ width: 30, height: 30, borderRadius: '50%' }} />
                                   <div>
                                     <strong>{op.name}</strong>
                                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{op.role}</div>
@@ -1254,7 +1191,7 @@ function App() {
                                 </div>
                               </td>
                               <td>
-                                <span style={{ fontWeight: 700, color: isOver ? '#f85149' : '#3fb950' }}>
+                                <span style={{ fontWeight: 700, color: isOver ? '#f43f5e' : '#10b981' }}>
                                   {op.allocatedCapacity}%
                                 </span>
                               </td>
@@ -1266,7 +1203,7 @@ function App() {
                                       className={`matrix-toggle-btn ${isAssigned ? 'assigned' : ''}`}
                                       onClick={() => handleToggleAllocation(op.id, p.id)}
                                     >
-                                      {isAssigned ? '✓ ASSIGNED' : '+ ALLOCATE'}
+                                      {isAssigned ? '✓ Assigned' : '+ Assign'}
                                     </button>
                                   </td>
                                 );
@@ -1280,10 +1217,10 @@ function App() {
                 </div>
               )}
 
-              {/* Live Telemetry Stream */}
-              <div className="card" style={{ marginTop: 20 }}>
+              {/* Telemetry Stream */}
+              <div className="card" style={{ marginTop: 24 }}>
                 <div className="card-header">
-                  <h3><Activity size={16} /> Resource Matrix Telemetry &amp; Headroom Events</h3>
+                  <h3><Activity size={16} /> Recent Team Activity &amp; Workload Updates</h3>
                 </div>
                 <div className="card-body">
                   <div className="telemetry-ticker">
@@ -1292,7 +1229,7 @@ function App() {
                         <span className="ticker-time">[{t.time}]</span>
                         <span className="ticker-agent">{t.agent}:</span>
                         <span style={{ color: '#fff', flex: 1 }}>{t.detail}</span>
-                        <span className="ticker-badge" style={{ background: t.badge?.includes('OVERLOAD') ? '#da3633' : '#238636' }}>
+                        <span className="ticker-badge" style={{ background: t.badge?.includes('OVERLOAD') ? '#f43f5e' : '#10b981', color: '#fff' }}>
                           {t.badge}
                         </span>
                       </div>
@@ -1303,45 +1240,46 @@ function App() {
             </div>
           )}
 
-          {/* ── 4. Talent Scout AI (from Decision Engine) ─────────────────────── */}
+          {/* ── 4. Find Team Members ────────────────────────────────────────── */}
           {currentView === 'talent_scout' && (
             <div className="view-container">
               <div className="page-header">
                 <div>
-                  <h1 className="page-title">Talent Scout AI &amp; Squad Assembly</h1>
-                  <p className="page-subtitle">Natural language skill matching with automatic headroom and burnout disqualification checks</p>
+                  <h1 className="page-title">Find Team Members</h1>
+                  <p className="page-subtitle">Search for team members by skill or role. Only available members will be recommended.</p>
                 </div>
               </div>
 
               {/* Search Container */}
               <div className="scout-search-container">
                 <div className="scout-input-wrap">
-                  <Sparkles size={20} color="#818cf8" />
+                  <Sparkles size={22} color="#818cf8" />
                   <input
                     type="text"
                     className="scout-input"
-                    placeholder="Describe skill requirements (e.g., Senior Go engineer with Kafka and low-latency microservices...)"
+                    placeholder="Describe skills needed (e.g., Python developer with database experience...)"
                     value={scoutQuery}
                     onChange={(e) => setScoutQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleScoutSearch()}
                   />
                   <button className="btn-primary" onClick={() => handleScoutSearch()} disabled={scoutLoading || !scoutQuery.trim()}>
                     {scoutLoading ? <Activity className="spinner" size={16} /> : <Search size={16} />}
-                    {scoutLoading ? "Scouting..." : "Match Squad"}
+                    {scoutLoading ? "Searching..." : "Find Members"}
                   </button>
                 </div>
 
                 {/* Quick Presets */}
                 <div className="scout-presets">
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Quick Scenarios:</span>
+                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Sample Searches:</span>
                   {[
-                    "Zero-Downtime Kubernetes Migration",
-                    "High-Frequency Kafka & Go Pipeline",
-                    "Autonomous LLM & Vector Database Research",
-                    "Cloud Security & Zero-Trust Defense"
+                    "Cloud Migration",
+                    "Data Streaming",
+                    "AI & Search Systems",
+                    "Security & Compliance"
                   ].map(preset => (
                     <button
                       key={preset}
+                      type="button"
                       className="scout-preset-btn"
                       onClick={() => {
                         setScoutQuery(preset);
@@ -1354,16 +1292,16 @@ function App() {
                 </div>
               </div>
 
-              {/* Scout Results */}
+              {/* Match Results */}
               {scoutResults && (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
                     <h3 style={{ fontSize: 16, color: '#fff' }}>
-                      Ranked Candidates ({scoutResults.candidates?.length} Available Under 100% Load)
+                      Recommended Members ({scoutResults.candidates?.length} Available)
                     </h3>
                     {scoutResults.disqualified_overloaded?.length > 0 && (
-                      <span className="badge" style={{ background: 'rgba(248,81,73,0.15)', color: '#f85149', border: '1px solid rgba(248,81,73,0.3)' }}>
-                        {scoutResults.disqualified_overloaded.length} Overloaded Disqualified
+                      <span className="badge" style={{ background: 'rgba(244,63,94,0.15)', color: '#fb7185', border: '1px solid rgba(244,63,94,0.3)', padding: '4px 10px', borderRadius: 100, fontSize: 11.5, fontWeight: 700 }}>
+                        {scoutResults.disqualified_overloaded.length} members are currently fully booked
                       </span>
                     )}
                   </div>
@@ -1390,8 +1328,8 @@ function App() {
                           <div className="op-body">
                             <div className="capacity-meter">
                               <div className="capacity-labels">
-                                <span style={{ color: 'var(--text-muted)' }}>Headroom Available</span>
-                                <strong style={{ color: '#3fb950' }}>{cand.remaining_headroom}% headroom</strong>
+                                <span style={{ color: 'var(--text-muted)' }}>Available Time</span>
+                                <strong style={{ color: '#10b981' }}>{cand.remaining_headroom}% free</strong>
                               </div>
                               <div className="capacity-bar-track">
                                 <div className="capacity-bar-fill nominal" style={{ width: `${cand.remaining_headroom}%` }} />
@@ -1399,10 +1337,10 @@ function App() {
                             </div>
 
                             <div>
-                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>MATCHED CAPABILITIES</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, marginBottom: 5 }}>MATCHED SKILLS</div>
                               <div className="op-skills-wrap">
                                 {cand.matched_skills?.map(s => (
-                                  <span key={s} className="op-skill-chip" style={{ borderColor: 'rgba(99,102,241,0.4)', color: '#818cf8' }}>
+                                  <span key={s} className="op-skill-chip" style={{ borderColor: 'rgba(99,102,241,0.4)', color: '#a5b4fc' }}>
                                     ✓ {s}
                                   </span>
                                 ))}
@@ -1411,12 +1349,10 @@ function App() {
 
                             <button
                               className="btn-primary"
-                              style={{ width: '100%', fontSize: 12, justifyContent: 'center', marginTop: 6 }}
-                              onClick={() => {
-                                handleRunHrReview(op.id, null, true);
-                              }}
+                              style={{ width: '100%', fontSize: 12.5, justifyContent: 'center', marginTop: 6 }}
+                              onClick={() => handleRunHrReview(op.id, null, true)}
                             >
-                              <User size={13} /> Select Operative Profile
+                              <User size={14} /> View Member Profile
                             </button>
                           </div>
                         </div>
@@ -1424,20 +1360,20 @@ function App() {
                     })}
                   </div>
 
-                  {/* Disqualified Operatives Alert */}
+                  {/* Protected Specialists */}
                   {scoutResults.disqualified_overloaded?.length > 0 && (
-                    <div className="card" style={{ marginTop: 24, border: '1px solid rgba(248,81,73,0.3)', background: 'rgba(248,81,73,0.03)' }}>
-                      <div className="card-header" style={{ color: '#f85149' }}>
-                        <h3><AlertOctagon size={16} /> Burnout Prevention: Disqualified from Consideration</h3>
+                    <div className="card" style={{ marginTop: 26, border: '1px solid rgba(244,63,94,0.3)', background: 'rgba(244,63,94,0.03)' }}>
+                      <div className="card-header" style={{ color: '#fb7185' }}>
+                        <h3><AlertOctagon size={16} /> Fully Booked Members (Protected from new work)</h3>
                       </div>
                       <div className="card-body">
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
                           {scoutResults.disqualified_overloaded.map(dis => (
-                            <div key={dis.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, background: 'rgba(0,0,0,0.2)', borderRadius: 6 }}>
-                              <img src={dis.avatar} alt={dis.name} style={{ width: 32, height: 32, borderRadius: '50%' }} />
+                            <div key={dis.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                              <img src={dis.avatar} alt={dis.name} style={{ width: 34, height: 34, borderRadius: '50%' }} />
                               <div>
                                 <strong style={{ fontSize: 13, color: '#fff' }}>{dis.name} ({dis.callsign})</strong>
-                                <div style={{ fontSize: 11, color: '#f85149' }}>{dis.allocatedCapacity}% Load (Exceeds Safety Threshold)</div>
+                                <div style={{ fontSize: 11.5, color: '#fb7185' }}>{dis.allocatedCapacity}% Busy (Not taking new work)</div>
                               </div>
                             </div>
                           ))}
@@ -1450,21 +1386,21 @@ function App() {
             </div>
           )}
 
-          {/* ── 5. HR Wellbeing Hub (from Decision Engine) ────────────────────── */}
+          {/* ── 5. Team Wellbeing Check ─────────────────────────────────────── */}
           {currentView === 'hr_wellbeing' && (
             <div className="view-container">
               <div className="page-header">
                 <div>
-                  <h1 className="page-title">Employee Wellbeing &amp; Situational HR Hub</h1>
-                  <p className="page-subtitle">Evidence-based assessment across Workload, Project Fit, Performance, Availability &amp; Wellbeing Check-ins</p>
+                  <h1 className="page-title">Team Wellbeing &amp; Workload Check</h1>
+                  <p className="page-subtitle">Review workload balance, project fit, and health indicators for any team member.</p>
                 </div>
               </div>
 
               {/* Selector Bar */}
               <div className="wellbeing-emp-selector">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="selector-group">
                   <User size={16} color="#818cf8" />
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>Operative:</span>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>Team Member:</span>
                   <select value={selectedHrOpId} onChange={(e) => setSelectedHrOpId(e.target.value)}>
                     {operatives.map(o => (
                       <option key={o.id} value={o.id}>
@@ -1474,11 +1410,11 @@ function App() {
                   </select>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Briefcase size={16} color="#a371f7" />
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>Compare Project:</span>
+                <div className="selector-group">
+                  <Briefcase size={16} color="#c084fc" />
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>Check Fit for Project:</span>
                   <select value={selectedHrPrjId} onChange={(e) => setSelectedHrPrjId(e.target.value)}>
-                    <option value="">(None - General Assessment)</option>
+                    <option value="">(None - General Check)</option>
                     {projects.map(p => (
                       <option key={p.id} value={p.id}>{p.codename}: {p.title}</option>
                     ))}
@@ -1491,30 +1427,31 @@ function App() {
                   disabled={hrReviewLoading}
                 >
                   {hrReviewLoading ? <Activity className="spinner" size={15} /> : <HeartHandshake size={15} />}
-                  {hrReviewLoading ? "Synthesizing..." : "Run 5-Agent Review"}
+                  {hrReviewLoading ? "Checking..." : "Run Wellbeing Check"}
                 </button>
               </div>
 
               {/* Assessment Results */}
               {hrAssessment ? (
                 <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 18 }}>
                     {hrAssessment.agents?.map((ag, idx) => (
-                      <div key={idx} className="card" style={{ padding: 18 }}>
+                      <div key={idx} className="card" style={{ padding: 20 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                          <strong style={{ color: '#fff', fontSize: 14 }}>{ag.agent}</strong>
+                          <strong style={{ color: '#fff', fontSize: 14.5 }}>{ag.agent}</strong>
                           <span
                             className="badge"
                             style={{
-                              background: ag.status?.includes('OVER') || ag.status?.includes('NO_') ? 'rgba(248,81,73,0.15)' : 'rgba(99,102,241,0.15)',
-                              color: ag.status?.includes('OVER') || ag.status?.includes('NO_') ? '#f85149' : '#818cf8',
-                              border: `1px solid ${ag.status?.includes('OVER') || ag.status?.includes('NO_') ? 'rgba(248,81,73,0.3)' : 'rgba(99,102,241,0.3)'}`
+                              background: ag.status?.includes('OVER') || ag.status?.includes('NO_') ? 'rgba(244,63,94,0.15)' : 'rgba(99,102,241,0.15)',
+                              color: ag.status?.includes('OVER') || ag.status?.includes('NO_') ? '#fb7185' : '#a5b4fc',
+                              border: `1px solid ${ag.status?.includes('OVER') || ag.status?.includes('NO_') ? 'rgba(244,63,94,0.3)' : 'rgba(99,102,241,0.3)'}`,
+                              padding: '2px 8px', borderRadius: 4, fontSize: 10.5, fontWeight: 700
                             }}
                           >
                             {ag.status}
                           </span>
                         </div>
-                        <p style={{ fontSize: 13, color: 'var(--text-main)', marginBottom: 8, lineHeight: 1.5 }}>{ag.summary}</p>
+                        <p style={{ fontSize: 13.5, color: 'var(--text-main)', marginBottom: 10, lineHeight: 1.55 }}>{ag.summary}</p>
                         {ag.evidence?.length > 0 && (
                           <ul className="hr-evidence-list">
                             {ag.evidence.map((ev, i) => (
@@ -1523,8 +1460,8 @@ function App() {
                           </ul>
                         )}
                         {ag.recommendations?.length > 0 && (
-                          <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(227,179,65,0.08)', borderRadius: 4, fontSize: 12, border: '1px solid rgba(227,179,65,0.2)' }}>
-                            <strong style={{ color: '#e3b341' }}>Action:</strong> {ag.recommendations[0]}
+                          <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(245,158,11,0.08)', borderRadius: 6, fontSize: 12.5, border: '1px solid rgba(245,158,11,0.2)' }}>
+                            <strong style={{ color: '#fbbf24' }}>Recommendation:</strong> {ag.recommendations[0]}
                           </div>
                         )}
                       </div>
@@ -1532,39 +1469,41 @@ function App() {
                   </div>
 
                   {hrAssessment.disclaimer && (
-                    <div className="card" style={{ marginTop: 16, background: 'rgba(255,255,255,0.02)' }}>
-                      <p style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        ℹ️ {hrAssessment.disclaimer}
-                      </p>
+                    <div className="card" style={{ marginTop: 18, background: 'rgba(255,255,255,0.02)' }}>
+                      <div className="card-body" style={{ padding: 14 }}>
+                        <p style={{ fontSize: 12, color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                          ℹ️ {hrAssessment.disclaimer}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="card empty-state" style={{ padding: 40 }}>
-                  <HeartHandshake size={40} color="#818cf8" />
-                  <h3 style={{ marginTop: 12, color: '#fff' }}>Select an Operative to Review</h3>
-                  <p style={{ color: 'var(--text-muted)', maxWidth: 480, margin: '8px auto' }}>
-                    Click &quot;Run 5-Agent Review&quot; above to synthesize workload headroom, skill compatibility, historical velocity, and wellbeing indicators.
+                <div className="card empty-state" style={{ padding: '64px 24px' }}>
+                  <HeartHandshake size={42} color="#818cf8" />
+                  <h3>Select a Team Member</h3>
+                  <p>
+                    Choose a team member above and click &quot;Run Wellbeing Check&quot; to review their workload balance, project fit, and health indicators.
                   </p>
                 </div>
               )}
             </div>
           )}
 
-          {/* ── 6. Enterprise Missions View ──────────────────────────────────── */}
+          {/* ── 6. Projects View ─────────────────────────────────────────────── */}
           {currentView === 'missions' && (
             <div className="view-container">
               <div className="page-header">
                 <div>
-                  <h1 className="page-title">Enterprise Missions &amp; Projects</h1>
-                  <p className="page-subtitle">Track project skill dependencies, slot allocations &amp; operational deadlines</p>
+                  <h1 className="page-title">Projects</h1>
+                  <p className="page-subtitle">Track active projects, required skills, team assignments, and deadlines.</p>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button className="btn-primary" onClick={() => setMissionModalOpen(true)}>
-                    <Plus size={15} /> Forge New Mission
+                    <Plus size={15} /> New Project
                   </button>
                   <button className="btn-ghost" onClick={fetchHcmState}>
-                    <RefreshCw size={15} /> Refresh
+                    <RefreshCw size={14} /> Refresh
                   </button>
                 </div>
               </div>
@@ -1580,16 +1519,16 @@ function App() {
                       <span className="id-badge">{prj.id}</span>
                     </div>
                     <div className="card-body">
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12, marginBottom: 12 }}>
-                        <div><span style={{ color: 'var(--text-muted)' }}>Dept:</span> <strong>{prj.department}</strong></div>
-                        <div><span style={{ color: 'var(--text-muted)' }}>Budget:</span> <strong>{prj.budget}</strong></div>
-                        <div><span style={{ color: 'var(--text-muted)' }}>Difficulty:</span> <strong>{prj.difficulty}</strong></div>
-                        <div><span style={{ color: 'var(--text-muted)' }}>Deadline:</span> <strong>{prj.deadline}</strong></div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12.5, marginBottom: 14 }}>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Department:</span> <strong style={{ color: '#fff' }}>{prj.department}</strong></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Budget:</span> <strong style={{ color: '#fff' }}>{prj.budget}</strong></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Level:</span> <strong style={{ color: '#fff' }}>{prj.difficulty}</strong></div>
+                        <div><span style={{ color: 'var(--text-muted)' }}>Deadline:</span> <strong style={{ color: '#fff' }}>{prj.deadline}</strong></div>
                       </div>
 
-                      <div style={{ marginBottom: 12 }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>REQUIRED SKILLS</div>
-                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, marginBottom: 5 }}>REQUIRED SKILLS</div>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                           {prj.requiredSkills?.map(s => (
                             <span key={s} className="op-skill-chip">{s}</span>
                           ))}
@@ -1597,9 +1536,9 @@ function App() {
                       </div>
 
                       <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                          <span style={{ color: 'var(--text-muted)' }}>Assigned Operatives</span>
-                          <strong>{prj.assignedOperativeIds?.length || 0} / {prj.requiredSlots || 3} Slots</strong>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 5 }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Assigned Team Members</span>
+                          <strong style={{ color: '#fff' }}>{prj.assignedOperativeIds?.length || 0} / {prj.requiredSlots || 3} Filled</strong>
                         </div>
                         <div className="capacity-bar-track">
                           <div
@@ -1615,16 +1554,16 @@ function App() {
             </div>
           )}
 
-          {/* ── 7. Incident Tickets View ─────────────────────────────────────── */}
+          {/* ── 7. Issue Tickets ────────────────────────────────────────────── */}
           {currentView === 'tickets' && (
             <div className="view-container">
               <div className="page-header">
                 <div>
-                  <h1 className="page-title">Incident Tickets &amp; ITSM Records</h1>
-                  <p className="page-subtitle">Tracked incident resolution records with pre-packaged diagnostic telemetry</p>
+                  <h1 className="page-title">Issue Tickets</h1>
+                  <p className="page-subtitle">All reported issues, current status, and resolution details.</p>
                 </div>
                 <button className="btn-ghost" onClick={fetchTickets} disabled={ticketsLoading}>
-                  <RefreshCw size={15} className={ticketsLoading ? 'spinner' : ''} />
+                  <RefreshCw size={14} className={ticketsLoading ? 'spinner' : ''} />
                   Refresh
                 </button>
               </div>
@@ -1635,12 +1574,12 @@ function App() {
                     <thead>
                       <tr>
                         <th>Ticket ID</th>
-                        <th>Title / Incident</th>
+                        <th>Summary</th>
                         <th>Type</th>
                         <th>Status</th>
-                        <th>Severity</th>
-                        <th>Timestamp</th>
-                        <th>Actions</th>
+                        <th>Urgency</th>
+                        <th>Reported At</th>
+                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1649,12 +1588,12 @@ function App() {
                           <Activity className="spinner" size={24} color="#6366f1" />
                         </td></tr>
                       ) : tickets.length === 0 ? (
-                        <tr><td colSpan="7" className="empty-row">No incident tickets found.</td></tr>
+                        <tr><td colSpan="7" className="empty-row">No tickets found.</td></tr>
                       ) : (
                         tickets.map((t) => (
                           <tr key={t.ticket_id} style={{ cursor: 'pointer' }} onClick={() => setSelectedTicket(t)}>
                             <td>
-                              <span className="id-badge" style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <span className="id-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                                 <Ticket size={12} />
                                 {t.ticket_id}
                               </span>
@@ -1663,26 +1602,26 @@ function App() {
                               <strong>{t.title}</strong>
                             </td>
                             <td>
-                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.type}</span>
+                              <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{t.type}</span>
                             </td>
                             <td>
                               <span style={{
                                 padding: '3px 8px',
                                 borderRadius: 4,
                                 fontSize: 11,
-                                fontWeight: 600,
-                                background: t.status === 'Escalated' ? 'rgba(248,81,73,0.15)' : t.status === 'Resolved' ? 'rgba(63,185,80,0.15)' : 'rgba(210,153,34,0.15)',
-                                color: t.status === 'Escalated' ? '#f85149' : t.status === 'Resolved' ? '#3fb950' : '#d29922',
-                                border: `1px solid ${t.status === 'Escalated' ? 'rgba(248,81,73,0.3)' : t.status === 'Resolved' ? 'rgba(63,185,80,0.3)' : 'rgba(210,153,34,0.3)'}`
+                                fontWeight: 700,
+                                background: t.status === 'Escalated' ? 'rgba(244,63,94,0.15)' : t.status === 'Resolved' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                                color: t.status === 'Escalated' ? '#fb7185' : t.status === 'Resolved' ? '#34d399' : '#fbbf24',
+                                border: `1px solid ${t.status === 'Escalated' ? 'rgba(244,63,94,0.3)' : t.status === 'Resolved' ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}`
                               }}>
                                 {t.status}
                               </span>
                             </td>
                             <td>
                               <span style={{
-                                fontSize: 11,
-                                fontWeight: 600,
-                                color: t.severity === 'High' ? '#f85149' : '#58a6ff'
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                                color: t.severity === 'High' ? '#fb7185' : '#818cf8'
                               }}>
                                 {t.severity}
                               </span>
@@ -1694,7 +1633,7 @@ function App() {
                                 style={{ padding: '3px 8px', fontSize: 12 }}
                                 onClick={(e) => { e.stopPropagation(); setSelectedTicket(t); }}
                               >
-                                <Eye size={13} /> View Ticket
+                                <Eye size={13} /> View Details
                               </button>
                             </td>
                           </tr>
@@ -1707,24 +1646,16 @@ function App() {
 
               {/* Ticket Details Modal */}
               {selectedTicket && (
-                <div style={{
-                  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                  background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  zIndex: 9999, padding: 20
-                }} onClick={() => setSelectedTicket(null)}>
-                  <div className="card" style={{
-                    maxWidth: 750, width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column',
-                    boxShadow: '0 16px 48px rgba(0,0,0,0.6)', border: '1px solid #30363d'
-                  }} onClick={(e) => e.stopPropagation()}>
-                    <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="hr-modal-overlay" onClick={() => setSelectedTicket(null)}>
+                  <div className="hr-modal-content" style={{ maxWidth: 740 }} onClick={(e) => e.stopPropagation()}>
+                    <div className="card-header">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Ticket size={20} color="#818cf8" />
                         <h3 style={{ margin: 0 }}>Ticket Details — {selectedTicket.ticket_id}</h3>
                         <span style={{
-                          padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                          background: selectedTicket.status === 'Escalated' ? 'rgba(248,81,73,0.15)' : 'rgba(63,185,80,0.15)',
-                          color: selectedTicket.status === 'Escalated' ? '#f85149' : '#3fb950'
+                          padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                          background: selectedTicket.status === 'Escalated' ? 'rgba(244,63,94,0.15)' : 'rgba(16,185,129,0.15)',
+                          color: selectedTicket.status === 'Escalated' ? '#fb7185' : '#34d399'
                         }}>
                           {selectedTicket.status}
                         </span>
@@ -1742,16 +1673,16 @@ function App() {
                           <strong>{selectedTicket.source}</strong>
                         </div>
                         <div className="info-row" style={{ flexDirection: 'column', alignItems: 'flex-start', background: 'rgba(255,255,255,0.02)', padding: 10, borderRadius: 6 }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Created / Logged</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Reported At</span>
                           <strong>{selectedTicket.timestamp}</strong>
                         </div>
                       </div>
 
-                      <h4 style={{ color: '#fff', fontSize: 14, marginBottom: 8 }}>Diagnostic Telemetry &amp; Resolution Directives</h4>
-                      <div style={{ background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: 16 }}>
+                      <h4 style={{ color: '#fff', fontSize: 14, marginBottom: 8 }}>Issue Details &amp; Solution Steps</h4>
+                      <div style={{ background: '#090e1a', border: '1px solid #1e293b', borderRadius: 6, padding: 16 }}>
                         <div className="markdown-body">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {selectedTicket.content || '*No content.*'}
+                            {selectedTicket.content || '*No content available.*'}
                           </ReactMarkdown>
                         </div>
                       </div>
@@ -1762,16 +1693,16 @@ function App() {
             </div>
           )}
 
-          {/* ── 8. History View ──────────────────────────────────────────────── */}
+          {/* ── 8. Issue History ─────────────────────────────────────────────── */}
           {currentView === 'history' && (
             <div className="view-container">
               <div className="page-header">
                 <div>
-                  <h1 className="page-title">Long-Term Memory Investigations</h1>
-                  <p className="page-subtitle">Persistent incident history: {historyTotal} records indexed in SQLite memory</p>
+                  <h1 className="page-title">Issue History</h1>
+                  <p className="page-subtitle">Log of past resolved issues ({historyTotal} saved records).</p>
                 </div>
                 <button className="btn-ghost" onClick={fetchHistory} disabled={historyLoading}>
-                  <RefreshCw size={15} className={historyLoading ? 'spinner' : ''} />
+                  <RefreshCw size={14} className={historyLoading ? 'spinner' : ''} />
                   Refresh
                 </button>
               </div>
@@ -1782,9 +1713,9 @@ function App() {
                     <thead>
                       <tr>
                         <th>#</th>
-                        <th>Incident Request</th>
-                        <th>Timestamp</th>
-                        <th>Mitigation Decision (Preview)</th>
+                        <th>Issue Description</th>
+                        <th>Date &amp; Time</th>
+                        <th>Solution Summary</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1793,7 +1724,7 @@ function App() {
                           <Activity className="spinner" size={24} color="#6366f1" />
                         </td></tr>
                       ) : history.length === 0 ? (
-                        <tr><td colSpan="4" className="empty-row">No investigations found in database.</td></tr>
+                        <tr><td colSpan="4" className="empty-row">No past issue history found.</td></tr>
                       ) : (
                         history.map((record) => (
                           <tr key={record.id}>
@@ -1811,128 +1742,110 @@ function App() {
             </div>
           )}
 
-          {/* ── 9. System Guidelines & Policies View ───────────────────────── */}
+          {/* ── 9. System Settings View ─────────────────────────────────────── */}
           {currentView === 'settings' && (
             <div className="view-container">
               <div className="page-header">
                 <div>
-                  <h1 className="page-title">System Guidelines &amp; Policies</h1>
-                  <p className="page-subtitle">Organizational workload policies, burnout prevention thresholds, and security administration</p>
+                  <h1 className="page-title">System Settings &amp; Status</h1>
+                  <p className="page-subtitle">View server connections, AI engine status, and safety rules.</p>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20 }}>
-                {/* Card 1: Team Workload Policies */}
+                {/* Integration Status Card */}
                 <div className="card">
-                  <div className="card-header"><h3><ShieldCheck size={16} /> Workload Headroom &amp; Safeguards</h3></div>
+                  <div className="card-header"><h3><Network size={16} /> Server Connection</h3></div>
                   <div className="card-body">
                     <div className="info-list">
                       <div className="info-row">
-                        <span>Hard Workload Cap</span>
-                        <strong style={{ color: '#f85149' }}>100% Maximum Capacity</strong>
+                        <span>Connection Status</span>
+                        <span className="badge success" style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', padding: '2px 8px', borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                          Connected &amp; Running
+                        </span>
                       </div>
                       <div className="info-row">
-                        <span>Burnout Protection</span>
-                        <span className="badge success">Active (Auto-Lockout)</span>
+                        <span>Mode</span>
+                        <strong style={{ color: '#818cf8' }}>{hcmSyncStatus?.mode || "Live Server Sync"}</strong>
                       </div>
                       <div className="info-row">
-                        <span>Overload Action</span>
-                        <span className="info-value">Automatically Disqualified from Pager Duty</span>
+                        <span>Reliability</span>
+                        <span className="info-value">Automatic failover enabled</span>
                       </div>
                       <div className="info-row">
-                        <span>Early Warning Threshold</span>
-                        <strong style={{ color: '#e3b341' }}>&gt; 85% Active Workload</strong>
+                        <span>Server URL</span>
+                        <span className="info-value">{API_BASE}</span>
                       </div>
                       <div className="info-row">
-                        <span>Target Utilization</span>
-                        <span className="info-value">65% – 80% per Engineer</span>
+                        <span>Server Health</span>
+                        <span className="info-value" style={{ color: '#10b981' }}>Operational</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Card 2: HR Security & Admin Access */}
+                {/* AI Reasoning Core */}
                 <div className="card">
-                  <div className="card-header"><h3><Lock size={16} /> HR Administrator Security Access</h3></div>
+                  <div className="card-header"><h3><Server size={16} /> AI Engine Settings</h3></div>
                   <div className="card-body">
                     <div className="info-list">
                       <div className="info-row">
-                        <span>Security Level</span>
-                        <span className="info-value">Protected Personnel Operations</span>
+                        <span>AI Service</span>
+                        <span className="info-value">Cloud AI Engine</span>
                       </div>
                       <div className="info-row">
-                        <span>Current Admin Session</span>
-                        {isAdminAuthenticated ? (
-                          <span className="badge success">Authenticated (Active)</span>
-                        ) : (
-                          <span className="badge" style={{ background: 'rgba(248,81,73,0.15)', color: '#f85149' }}>Locked</span>
-                        )}
+                        <span>AI Model</span>
+                        <span className="info-value">{metrics?.agents?.model || 'Standard AI Model'}</span>
                       </div>
                       <div className="info-row">
-                        <span>Team Management Action</span>
-                        {isAdminAuthenticated ? (
-                          <button className="btn-ghost" style={{ fontSize: 12, color: '#f85149' }} onClick={handleLockAdmin}>
-                            <Lock size={12} /> Lock Admin Access
-                          </button>
-                        ) : (
-                          <button className="btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => { setPendingAction(null); setAuthModalOpen(true); }}>
-                            <LockOpen size={12} /> Authenticate Admin
-                          </button>
-                        )}
+                        <span>Process Engine</span>
+                        <span className="info-value">Multi-Step Process Engine</span>
                       </div>
                       <div className="info-row">
-                        <span>Policy Scope</span>
-                        <span className="info-value">Only authenticated managers can add or remove team members</span>
+                        <span>Steps Followed</span>
+                        <span className="info-value">Plan ➔ Gather Details ➔ Root Cause ➔ Solution</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Card 3: Intelligent Triage Dispatch */}
+                {/* Data Persistence */}
                 <div className="card">
-                  <div className="card-header"><h3><Zap size={16} /> Incident Assignment Strategy</h3></div>
+                  <div className="card-header"><h3><Database size={16} /> Data Storage &amp; Records</h3></div>
                   <div className="card-body">
                     <div className="info-list">
                       <div className="info-row">
-                        <span>Matching Strategy</span>
-                        <span className="info-value">Skill Relevance + Lowest Workload Load</span>
+                        <span>Saved Solutions</span>
+                        <span className="info-value">Database of past solutions</span>
                       </div>
                       <div className="info-row">
-                        <span>Context Handoff</span>
-                        <span className="info-value">Pre-Packaged Diagnostic Telemetry &amp; Runbook</span>
+                        <span>Activity Logs</span>
+                        <span className="info-value">System event logs</span>
                       </div>
                       <div className="info-row">
-                        <span>Average Triage Speed</span>
-                        <span className="info-value">~4 Seconds Autonomous Resolution</span>
-                      </div>
-                      <div className="info-row">
-                        <span>Severity Classification</span>
-                        <span className="info-value">Multi-Tier Prioritization (P1, P2, P3)</span>
+                        <span>Team Workload Sync</span>
+                        <span className="info-value">Live workload cache</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Card 4: Platform Reliability */}
+                {/* Burnout Governance */}
                 <div className="card">
-                  <div className="card-header"><h3><Activity size={16} /> Platform Operational Status</h3></div>
+                  <div className="card-header"><h3><ShieldCheck size={16} /> Workload Protection Rules</h3></div>
                   <div className="card-body">
                     <div className="info-list">
                       <div className="info-row">
-                        <span>System Health</span>
-                        <span className="badge success">All Systems Operational</span>
+                        <span>Maximum Workload Cap</span>
+                        <strong style={{ color: '#f43f5e' }}>100% (Strict Limit)</strong>
                       </div>
                       <div className="info-row">
-                        <span>Incident Dispatch Service</span>
-                        <span className="info-value">Online &amp; Responsive</span>
+                        <span>When 100% Full</span>
+                        <span className="info-value">Paused from new tasks automatically</span>
                       </div>
                       <div className="info-row">
-                        <span>Workforce Directory</span>
-                        <span className="info-value">{operatives.length} Team Members Registered</span>
-                      </div>
-                      <div className="info-row">
-                        <span>Active Projects</span>
-                        <span className="info-value">{projects.length} Initiatives Tracked</span>
+                        <span>High Workload Alert</span>
+                        <span className="info-value">Alerts sent when above 85% full</span>
                       </div>
                     </div>
                   </div>
@@ -1948,10 +1861,10 @@ function App() {
       {hrModalOpen && modalOperative && (
         <div className="hr-modal-overlay" onClick={() => setHrModalOpen(false)}>
           <div className="hr-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <HeartHandshake size={20} color="#818cf8" />
-                <h3 style={{ margin: 0 }}>5-Agent HR Situation Review — {modalOperative.name}</h3>
+                <h3 style={{ margin: 0 }}>Team Member Workload &amp; Wellbeing — {modalOperative.name}</h3>
                 <span className="op-callsign">{modalOperative.callsign}</span>
               </div>
               <button className="btn-ghost" style={{ padding: '4px 8px' }} onClick={() => setHrModalOpen(false)}>✕</button>
@@ -1961,23 +1874,23 @@ function App() {
               {hrReviewLoading ? (
                 <div style={{ textAlign: 'center', padding: '40px 0' }}>
                   <Activity className="spinner" size={32} color="#6366f1" />
-                  <p style={{ marginTop: 12, color: 'var(--text-muted)' }}>Coordinating 5 HR evaluation agents...</p>
+                  <p style={{ marginTop: 12, color: 'var(--text-muted)' }}>Reviewing workload and health indicators...</p>
                 </div>
               ) : hrAssessment ? (
                 <div>
                   <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-                    Evidence-based situational assessment synthesized across 5 specialized autonomous HR agents:
+                    Detailed breakdown across workload, skill match, speed, and health indicators:
                   </p>
 
                   {hrAssessment.agents?.map((ag, idx) => (
                     <div key={idx} className="hr-agent-item">
                       <div className="hr-agent-header">
-                        <strong style={{ color: '#fff', fontSize: 13 }}>{ag.agent}</strong>
+                        <strong style={{ color: '#fff', fontSize: 13.5 }}>{ag.agent}</strong>
                         <span
                           className="hr-agent-badge"
                           style={{
-                            background: ag.status?.includes('OVER') || ag.status?.includes('NO_') ? 'rgba(248,81,73,0.15)' : 'rgba(99,102,241,0.15)',
-                            color: ag.status?.includes('OVER') || ag.status?.includes('NO_') ? '#f85149' : '#818cf8'
+                            background: ag.status?.includes('OVER') || ag.status?.includes('NO_') ? 'rgba(244,63,94,0.15)' : 'rgba(99,102,241,0.15)',
+                            color: ag.status?.includes('OVER') || ag.status?.includes('NO_') ? '#fb7185' : '#a5b4fc'
                           }}
                         >
                           {ag.status}
@@ -1993,21 +1906,21 @@ function App() {
                       )}
                       {ag.recommendations?.length > 0 && (
                         <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 4, fontSize: 12 }}>
-                          <strong style={{ color: '#e3b341' }}>Recommendation:</strong> {ag.recommendations[0]}
+                          <strong style={{ color: '#fbbf24' }}>Recommendation:</strong> {ag.recommendations[0]}
                         </div>
                       )}
                     </div>
                   ))}
 
                   {hrAssessment.disclaimer && (
-                    <p style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 14 }}>
+                    <p style={{ fontSize: 11.5, color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 14 }}>
                       ⚠️ {hrAssessment.disclaimer}
                     </p>
                   )}
                 </div>
               ) : (
                 <div className="empty-state">
-                  <p>Unable to generate assessment.</p>
+                  <p>Unable to generate review.</p>
                 </div>
               )}
             </div>
@@ -2015,14 +1928,14 @@ function App() {
         </div>
       )}
 
-      {/* ─── Project Creation Modal ────────────────────────────────────────── */}
+      {/* ─── Create New Project Modal ────────────────────────────────────────── */}
       {missionModalOpen && (
         <div className="hr-modal-overlay" onClick={() => setMissionModalOpen(false)}>
           <div className="hr-modal-content" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Briefcase size={18} color="#818cf8" />
-                <h3 style={{ margin: 0 }}>Create Enterprise Project</h3>
+                <h3 style={{ margin: 0 }}>Create New Project</h3>
               </div>
               <button className="btn-ghost" style={{ padding: '4px 8px' }} onClick={() => setMissionModalOpen(false)}>✕</button>
             </div>
@@ -2032,7 +1945,7 @@ function App() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Real-Time Kafka Stream Pipeline"
+                  placeholder="e.g. Customer Portal Redesign"
                   value={newMission.title}
                   onChange={(e) => setNewMission({ ...newMission, title: e.target.value })}
                   style={{ width: '100%', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '8px 12px', color: '#fff' }}
@@ -2062,7 +1975,7 @@ function App() {
                 <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Required Skills (comma separated)</label>
                 <input
                   type="text"
-                  placeholder="e.g. Go, Kafka, Docker, Kubernetes"
+                  placeholder="e.g. Python, SQL, Cloud, React"
                   value={newMission.required_skills}
                   onChange={(e) => setNewMission({ ...newMission, required_skills: e.target.value })}
                   style={{ width: '100%', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '8px 12px', color: '#fff' }}
@@ -2072,171 +1985,6 @@ function App() {
                 <button type="button" className="btn-ghost" onClick={() => setMissionModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn-primary" disabled={missionSubmitting}>
                   {missionSubmitting ? "Creating..." : "Create Project"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ─── HR Administrator Security Authentication Modal ─────────────────── */}
-      {authModalOpen && (
-        <div className="hr-modal-overlay" onClick={() => setAuthModalOpen(false)}>
-          <div className="hr-modal-content" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <ShieldCheck size={20} color="#818cf8" />
-                <h3 style={{ margin: 0 }}>HR Admin Authentication</h3>
-              </div>
-              <button className="btn-ghost" style={{ padding: '4px 8px' }} onClick={() => setAuthModalOpen(false)}>✕</button>
-            </div>
-            <form onSubmit={handleAdminLogin} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                Administrator verification is required to add or remove team members.
-              </p>
-
-              {authError && (
-                <div className="disqualified-alert" style={{ marginTop: 0 }}>
-                  <ShieldAlert size={14} />
-                  <span>{authError}</span>
-                </div>
-              )}
-
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Admin Username</label>
-                <input
-                  type="text"
-                  required
-                  value={authUsername}
-                  onChange={(e) => setAuthUsername(e.target.value)}
-                  placeholder="admin"
-                  style={{ width: '100%', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '10px 14px', color: '#fff', fontSize: 14 }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Password</label>
-                <input
-                  type="password"
-                  required
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  placeholder="••••••••"
-                  style={{ width: '100%', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '10px 14px', color: '#fff', fontSize: 14 }}
-                />
-              </div>
-
-              <div style={{ padding: '8px 12px', background: 'rgba(99,102,241,0.08)', borderRadius: 6, border: '1px solid rgba(99,102,241,0.2)', fontSize: 12, color: '#818cf8' }}>
-                🔑 <strong>Default Credentials:</strong> <code>admin</code> / <code>admin123</code>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
-                <button type="button" className="btn-ghost" onClick={() => setAuthModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn-primary" disabled={authLoading}>
-                  {authLoading ? <Activity className="spinner" size={15} /> : <LockOpen size={15} />}
-                  {authLoading ? "Verifying..." : "Verify & Unlock"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Add New Team Member Modal ───────────────────────────────────────── */}
-      {addEmpModalOpen && (
-        <div className="hr-modal-overlay" onClick={() => setAddEmpModalOpen(false)}>
-          <div className="hr-modal-content" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <UserPlus size={18} color="#818cf8" />
-                <h3 style={{ margin: 0 }}>Add New Team Member</h3>
-              </div>
-              <button className="btn-ghost" style={{ padding: '4px 8px' }} onClick={() => setAddEmpModalOpen(false)}>✕</button>
-            </div>
-            <form onSubmit={handleAddEmployeeSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Maya Lin"
-                  value={newEmployee.name}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
-                  style={{ width: '100%', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '8px 12px', color: '#fff' }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Job Role / Title *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Senior DevOps Engineer"
-                    value={newEmployee.role}
-                    onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
-                    style={{ width: '100%', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '8px 12px', color: '#fff' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Department</label>
-                  <select
-                    value={newEmployee.department}
-                    onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
-                    style={{ width: '100%', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '8px 12px', color: '#fff' }}
-                  >
-                    <option value="Cloud Infrastructure">Cloud Infrastructure</option>
-                    <option value="Applied AI">Applied AI</option>
-                    <option value="Frontend Systems">Frontend Systems</option>
-                    <option value="Cybersecurity">Cybersecurity</option>
-                    <option value="Core Services">Core Services</option>
-                    <option value="Platform Engineering">Platform Engineering</option>
-                    <option value="Data Systems">Data Systems</option>
-                    <option value="Engineering">Engineering General</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Work Email</label>
-                  <input
-                    type="email"
-                    placeholder="e.g. maya.lin@enterprise.com"
-                    value={newEmployee.email}
-                    onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
-                    style={{ width: '100%', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '8px 12px', color: '#fff' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Initial Workload %</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="120"
-                    value={newEmployee.allocatedCapacity}
-                    onChange={(e) => setNewEmployee({ ...newEmployee, allocatedCapacity: e.target.value })}
-                    style={{ width: '100%', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '8px 12px', color: '#fff' }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Tech Stack &amp; Skills (comma separated) *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Go, Kubernetes, Terraform, Docker, Python"
-                  value={newEmployee.skills}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, skills: e.target.value })}
-                  style={{ width: '100%', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 6, padding: '8px 12px', color: '#fff' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-                <button type="button" className="btn-ghost" onClick={() => setAddEmpModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn-primary" disabled={addEmpLoading}>
-                  {addEmpLoading ? "Adding..." : "Add to Team"}
                 </button>
               </div>
             </form>
