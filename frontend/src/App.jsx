@@ -10,7 +10,7 @@ import {
   TrendingUp, RefreshCw, BookOpen, Globe, GitMerge, BarChart3,
   CheckCircle, XCircle, Info, ArrowUpRight, Ticket, Eye,
   Users, HeartHandshake, Gauge, Briefcase, Plus, Filter, ShieldCheck, AlertOctagon, Sparkles, Sliders,
-  UserPlus, Trash2, Lock, LockOpen
+  UserPlus, Trash2, Lock, LockOpen, HelpCircle
 } from 'lucide-react';
 import './App.css';
 
