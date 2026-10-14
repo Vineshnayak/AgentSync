@@ -1,6 +1,6 @@
 from typing import TypedDict, List, Dict, Any, Optional
 
-class AgentState(TypedDict):
+class AgentState(TypedDict, total=False):
     user_request: str
     plan: str
     investigation_results: str
@@ -12,3 +12,5 @@ class AgentState(TypedDict):
     assigned_engineer: Optional[Dict[str, Any]]
     context_bundle: Optional[Dict[str, Any]]
     wellbeing_alert: Optional[Dict[str, Any]]
+    is_general_query: Optional[bool]
+    severity: Optional[str]

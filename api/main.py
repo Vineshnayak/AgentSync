@@ -71,6 +71,8 @@ class WorkflowResponse(BaseModel):
     assigned_engineer: Optional[Dict[str, Any]] = None
     context_bundle: Optional[Dict[str, Any]] = None
     wellbeing_alert: Optional[Dict[str, Any]] = None
+    is_general_query: bool = False
+    severity: str = "P1"
 
 class ChatMessage(BaseModel):
     message: str
@@ -133,6 +135,9 @@ async def run_workflow(req: WorkflowRequest):
     try:
         final_state = run_agent_workflow(req.request_text)
 
+        is_gen = bool(final_state.get("is_general_query", False))
+        sev = "Informational" if is_gen else final_state.get("severity", "P1")
+
         response = WorkflowResponse(
             job_id=job_id,
             status=final_state.get("workflow_status", "Completed"),
@@ -144,7 +149,9 @@ async def run_workflow(req: WorkflowRequest):
             errors=final_state.get("errors", []),
             assigned_engineer=final_state.get("assigned_engineer"),
             context_bundle=final_state.get("context_bundle"),
-            wellbeing_alert=final_state.get("wellbeing_alert")
+            wellbeing_alert=final_state.get("wellbeing_alert"),
+            is_general_query=is_gen,
+            severity=sev
         )
 
         workflow_jobs[job_id] = {

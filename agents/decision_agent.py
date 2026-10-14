@@ -51,6 +51,16 @@ Provide a complete, final user-facing response with clear next steps.
         
         decision_text = response.content
         
+        # Guard: Do NOT match or assign human engineers for general informational queries
+        if state.get("is_general_query") or state.get("workflow_status") == "Completed (Informational)":
+            logger.info("General informational query detected. Skipping HCM engineer assignment.")
+            state["assigned_engineer"] = None
+            state["context_bundle"] = None
+            state["wellbeing_alert"] = None
+            state["decision"] = decision_text
+            state["workflow_status"] = "Completed (Informational)"
+            return state
+
         # ─── HCM Smart Resource Assignment & Contextual Handoff ─────────────
         from hcm.hcm_manager import hcm_manager
         import re

@@ -18,14 +18,16 @@ def run_planner(state: AgentState) -> AgentState:
     try:
         llm = ChatGroq(api_key=settings.GROQ_API_KEY, model=settings.DEFAULT_MODEL)
         
-        system_msg = SystemMessage(content="""You are the Planner Agent for an IT Incident Resolution Engine.
-Your job is to understand the incident request and break it down into a clear, structured investigation plan.
-Identify which tools and steps are required (e.g., check health, analyze logs, search history).
-Do not perform the investigation yourself. Just output the step-by-step plan.
+        system_msg = SystemMessage(content="""You are the Lead Planning & Triage Agent for an Enterprise Multi-Agent Coordination Engine.
+Analyze the user request to determine whether it is an IT Incident or a General/Informational Inquiry.
 
-IMPORTANT RULE: This interface is STRICTLY for IT Incident Resolution. If the user provides a generalized prompt or a prompt for any other use case (e.g., 'Analyze sales data', 'Write a poem', 'Plan a vacation'), you MUST reject it. 
-In such cases, your response must be exactly: "This interface is for IT Incident Resolution. Here is what I can do: I can investigate service outages, analyze application logs, check service health, and help resolve IT incidents." Do not output a plan if you reject the prompt.
-If past similar plans are provided, use them to structure your current plan efficiently.
+1. CATEGORY 1: IT INCIDENT OR INFRASTRUCTURE ISSUE
+   Examples: service outages, 500 errors, database timeouts, latency spikes, pod crashes, memory leaks, unmonitored server issues, network drops.
+   Instruction: Formulate a structured, step-by-step technical investigation plan specifying diagnostic tools to use (check health, examine logs, query past incident history, search runbooks). Do not include any prefix.
+
+2. CATEGORY 2: GENERAL INQUIRY / FACTUAL QUESTION / NON-INCIDENT
+   Examples: general knowledge questions (e.g. 'capital of india', 'what is 2+2', 'who is the CEO'), questions about company policies, greetings, or non-outage prompts.
+   Instruction: Start your response with `[INFORMATIONAL_QUERY]` on the very first line. On subsequent lines, provide the direct, accurate, and concise answer to the user's question.
 """)
         
         # Retrieve long-term memory for context-aware planning
@@ -34,7 +36,6 @@ If past similar plans are provided, use them to structure your current plan effi
         if len(keywords) > 2:
              search_keyword = max(keywords[:5], key=len)
              
-        # Fetch using a custom query or the existing method (which gets user_request, decision)
         past_plans = memory_manager.get_past_decisions(search_keyword) 
         memory_context = ""
         if past_plans:
@@ -48,8 +49,32 @@ If past similar plans are provided, use them to structure your current plan effi
         response = llm.invoke([system_msg, human_msg])
         global_metrics.increment_llm()
         
-        state["plan"] = response.content
-        state["workflow_status"] = "Planned"
+        content = response.content.strip()
+        is_info = (
+            "[INFORMATIONAL_QUERY]" in content
+            or "This interface is for IT Incident Resolution" in content
+        )
+        
+        if is_info:
+            direct_ans = content.replace("[INFORMATIONAL_QUERY]", "").strip()
+            if "This interface is for IT Incident Resolution" in direct_ans and len(direct_ans.splitlines()) <= 2:
+                direct_ans = f"Inquiry noted for: \"{state['user_request']}\". No IT service outage or infrastructure anomaly was detected. If you are reporting a system issue, please include the service name or error details."
+                
+            state["is_general_query"] = True
+            state["severity"] = "Informational"
+            state["plan"] = "Informational Request: Direct response formulated. No incident investigation plan required."
+            state["investigation_results"] = "No infrastructure logs or metrics were probed (non-incident query)."
+            state["analysis"] = "Request classified as General Inquiry. Zero operational risk or service degradation detected."
+            state["decision"] = f"{direct_ans}\n\n*(Note: This query was processed as an informational inquiry. Since no infrastructure outage or service degradation was detected, no engineering personnel have been dispatched, and zero capacity was consumed.)*"
+            state["workflow_status"] = "Completed (Informational)"
+            state["assigned_engineer"] = None
+            state["context_bundle"] = None
+            state["wellbeing_alert"] = None
+        else:
+            state["is_general_query"] = False
+            state["severity"] = "P1"
+            state["plan"] = content
+            state["workflow_status"] = "Planned"
         
     except Exception as e:
         logger.error(f"Planner Agent failed: {e}")

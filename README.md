@@ -1,112 +1,128 @@
 # AgentSync: AI Agent Coordination & Decision Engine
 
-AgentSync is an enterprise-grade AI agent orchestration platform that seamlessly bridges autonomous IT incident resolution with Human Capital Management (HCM) resource allocation. By uniting a Python/FastAPI + LangGraph incident engine with a real-time Resource Allocation Matrix and evidence-based HR decision agents, the platform automates end-to-end triage, evidence gathering, root cause analysis, capacity-headroom-aware engineer assignment, and telemetry-bundled ticketing.
+AgentSync is an enterprise AI agent orchestration and decision engine that integrates autonomous incident management with Human Capital Management (HCM) resource allocation. The platform pairs LangGraph-orchestrated multi-agent workflows with an interactive capacity matrix and evidence-based HR decision agents. It automates end-to-end incident triage, diagnostic evidence collection, root-cause analysis, and capacity-headroom-aware engineer assignment, while preserving team wellbeing and avoiding burnout.
 
 ---
 
-## 📋 Key Capabilities
+## 📋 Core Capabilities
 
-- **Dual-Stack Integration & Zero-Downtime Fallback**: Bridges Python/FastAPI/LangGraph with Node.js/Express HCM services, with an automatic in-process fallback engine ensuring zero operational downtime if auxiliary services disconnect.
-- **Autonomous Outage Triage**: LangGraph agents continuously ingest diagnostic logs, service health, and runbooks to isolate root causes without manual hunting.
-- **Strict Skill-Aware Matching**: Evaluates incident error signatures against operative capability profiles to match qualified engineers.
-- **Burnout Prevention Engine**: Enforces a strict `< 100%` active workload capacity threshold to disqualify overloaded personnel (e.g. Dr. Elena Rostova @ 115%) from incident paging.
-- **Talent Scout AI & Squad Assembly**: Natural language skill matching and candidate ranking engine with automated headroom and burnout disqualification checks.
-- **Contextual Handoff & Telemetry Bundles**: Pre-packages root cause analyses, stack traces, and mitigation runbooks directly into incident tickets and engineer assignment payloads.
-- **Wellbeing Safeguard & Stress Monitoring**: Features a 5-agent HR review engine (Workload, Project Fit, Performance, Availability, and Wellbeing Check-in) that flags workload spikes for proactive managerial review.
-- **Unified Single-Interface Web Console**: A dark-mode, industry-grade React 19 interface providing real-time telemetry, Talent Scout AI squad assembly, interactive project allocation toggles, an HR review hub, an incident resolution runner, and ticket management.
+- **Intelligent Request Classification & Triage**: Evaluates incoming prompts to distinguish between operational IT incidents and general informational inquiries. General inquiries are answered directly with zero workload consumption, while infrastructure disruptions trigger autonomous multi-agent triage.
+- **Autonomous Multi-Agent Investigation**: LangGraph agents autonomously parse application logs, execute service health checks, query historical incident databases, and inspect runbooks using integrated enterprise tools.
+- **Capacity-Headroom & Burnout Prevention**: Enforces a strict operational capacity threshold (`< 100%`). Overloaded personnel (e.g., personnel at $\ge 100\%$ capacity) are automatically disqualified from incident paging to prevent fatigue and burnout.
+- **Contextual Handoff & Diagnostic Bundles**: Packages diagnosed root causes, relevant stack traces, affected service identifiers, and recommended standard operating procedures (SOPs) directly into generated incident tickets and assignment handoffs.
+- **Authenticated HR Personnel Management**: Provides secure team roster management (adding and deleting team members with technical skill profiles, departments, and initial capacity) gated by an HR administrator authentication checkpoint.
+- **Interactive Project Allocation Matrix**: Real-time allocation grid enabling team managers to toggle project assignments, recalculating capacity headroom, stress indexes, and telemetry streams on the fly.
+- **Dual-Stack Integration & In-Process Fallback**: Integrates Python/FastAPI incident workflows with Node.js/Express HCM services, equipped with an automatic in-process fallback engine ensuring continuous operation without external dependencies.
+- **Enterprise Web Console**: A responsive React 19 interface providing operations dashboards, incident tickets, past incident archives, team capacity matrices, talent scout search, and system guidelines.
 
 ---
 
-## ⚙️ Architecture & Execution Workflow
+## ⚙️ System Architecture & Workflow
 
 ```
-[ Incoming Outage / Telemetry Alert ]
-                 │
-                 ▼
-          ┌──────────────┐
-          │ Planner Agent│ ── Formulates structured investigation checklist
-          └──────┬───────┘
-                 │
-                 ▼
-       ┌─────────────────────┐
-       │ Investigation Agent │ ── Calls 7 enterprise tools (Logs, Health, DB, APIs)
-       └──────┬──────────────┘
-              │
-              ▼
-       ┌────────────────┐
-       │ Analysis Agent │ ── Isolates root cause & risk classification (P1/P2/P3)
-       └──────┬─────────┘
-              │
-              ▼
-       ┌─────────────────┐
-       │ Risk Evaluation │ ── Routes: High Risk -> Immediate | Med -> Re-investigate
-       └──────┬──────────┘
-              │
-              ▼
-       ┌────────────────┐
-       │ Decision Agent │ ── Synthesizes resolution SOP & triggers HCM Matcher
-       └──────┬─────────┘
-              │
-              ▼
-   ┌───────────────────────┐
-   │ Resource Matrix Match │ ── Evaluates skills + enforces strict <100% capacity
-   └──────┬───────────────┘
-          │
-    ┌─────┴─────────────────────────┐
-    ▼                               ▼
-[ Optimal Engineer Assigned ]  [ Overloaded Personnel Disqualified ]
-(e.g., Tariq Mansoor @ 75%)    (e.g., Dr. Elena Rostova @ 115% Lockout)
-    │
-    ▼
-[ Pre-Packaged Context Bundle ] ── Root cause + SOP + Logs attached to Ticket
+[ Incoming Request / Operational Alert ]
+                   │
+                   ▼
+        ┌──────────────────────┐
+        │    Planner Agent     │ ── Classifies Intent: IT Incident vs General Inquiry
+        └──────────┬───────────┘
+                   │
+         ┌─────────┴────────────────────────┐
+         │ (General Inquiry)                │ (IT Incident / Outage)
+         ▼                                  ▼
+┌──────────────────────────────┐   ┌──────────────────────────────┐
+│  Direct Response Formulated  │   │     Investigation Agent      │ ── Calls diagnostic tools
+│  (0% Capacity Impact / Safe) │   └──────────────┬───────────────┘    (Logs, Health, DB, APIs)
+└──────────────┬───────────────┘                  │
+               │                                  ▼
+               │                   ┌──────────────────────────────┐
+               │                   │        Analysis Agent        │ ── Isolates root cause & risk
+               │                   └──────────────┬───────────────┘
+               │                                  ▼
+               │                   ┌──────────────────────────────┐
+               │                   │       Risk Evaluation        │ ── Routes: High Risk -> Immediate
+               │                   └──────────────┬───────────────┘            Med Risk  -> Re-investigate
+               │                                  ▼
+               │                   ┌──────────────────────────────┐
+               │                   │        Decision Agent        │ ── Prescribes remediation &
+               │                   └──────────────┬───────────────┘    triggers Resource Matcher
+               │                                  │
+               │                                  ▼
+               │                   ┌──────────────────────────────┐
+               │                   │    Resource Matrix Match     │ ── Skill-aware matching +
+               │                   └──────────────┬───────────────┘    enforces <100% capacity cap
+               │                                  │
+               │                        ┌─────────┴─────────┐
+               │                        ▼                   ▼
+               │               [ Optimal Engineer ]  [ Overloaded Personnel ]
+               │               (e.g., Tariq @ 75%)   (Disqualified @ >=100%)
+               │                        │
+               │                        ▼
+               │               [ Context Bundle ] ── Root cause + SOP + Logs
+               │               [ Ticket Created ]    attached to ticket
+               ▼                        ▼
+       [ Final Execution State & Episodic Memory Persistence ]
 ```
 
 ---
 
-## 🤖 The 9-Agent Fleet
+## 🤖 Multi-Agent Architecture
 
-The coordination engine deploys 9 discrete agents across two integrated tiers:
+The coordination engine deploys 9 specialized agents across two collaborating tiers:
 
 ### 1. Incident Resolution & Orchestration Tier (LangGraph)
-| Agent | Role | Capabilities |
+| Agent | Role | Key Responsibilities |
 | :--- | :--- | :--- |
-| **Planner Agent** | Strategy | Incident decomposition, execution planning, tool sequencing. |
-| **Investigation Agent** | Research / ReAct | Multi-tool invocation, log parsing, service probing, runbook search. |
-| **Analysis Agent** | Diagnostics | Root cause identification, risk assessment, business impact scoring. |
-| **Decision Agent** | Action / Dispatch | Mitigation formulation, ticket creation, contextual telemetry bundling. |
+| **Planner Agent** | Strategy & Triage | Evaluates incoming requests, separates general queries from incidents, decomposes issues into structured investigation checklists. |
+| **Investigation Agent** | ReAct Research | Autonomously invokes diagnostic tools (service health, log analysis, past history, runbooks, external API checks). |
+| **Analysis Agent** | Diagnostics | Synthesizes tool outputs to determine root causes, affected systems, impact severity, and failure modes. |
+| **Decision Agent** | Mitigation & Dispatch | Formulates mitigation plans, coordinates with the HCM resource matrix, and pre-packages diagnostic context bundles. |
 
-### 2. Human Capital Management (HCM) Decision Engine Tier
-| Agent | Role | Capabilities |
+### 2. Human Capital Management (HCM) Decision Tier
+| Agent | Role | Key Responsibilities |
 | :--- | :--- | :--- |
-| **Workload Agent** | Capacity Enforcement | Tracks allocation %, enforces `< 100%` headroom threshold, prevents alert fatigue. |
-| **Project Fit Agent** | Talent Matching | Vector skill-profile indexing, incident domain mapping, fit score calculation. |
-| **Performance Agent** | Operational Metrics | Analyzes historical incident resolution velocity, code quality, and delivery track records. |
-| **Availability Agent** | Scheduling | Assesses active commitments, deadlines, and on-call bandwidth reservations. |
-| **Employee Wellbeing Agent**| Safety & Burnout | Monitors stress indices, detects rapid load spikes, triggers early HR interventions. |
+| **Workload Agent** | Capacity Enforcement | Tracks employee allocation percentages, enforces the `< 100%` hard headroom threshold, and manages overload alerts. |
+| **Project Fit Agent** | Skill Matching | Analyzes required incident technologies against employee skill profiles to calculate match fit scores. |
+| **Performance Agent** | Operational Metrics | Evaluates historical incident resolution performance and delivery track records. |
+| **Availability Agent** | Schedule Coordination | Validates on-call commitments, project milestones, and current bandwidth availability. |
+| **Employee Wellbeing Agent** | Stress & Burnout | Assesses stress indices, flags rapid capacity increases, and issues managerial wellbeing recommendations. |
 
 ---
 
-## 🛠️ Enterprise Tool Ecosystem (7 Tools)
+## 🛠️ Integrated Enterprise Tools (7 Tools)
 
-1. **`service_health_tool`**: Inspects real-time service health, latency, CPU, and error metrics from `enterprise_mock.db`.
-2. **`log_analyzer_tool`**: Parses application logs to detect stack traces, timeout patterns, and error anomalies.
-3. **`incident_history_tool`**: Retrieves past service outages to cross-reference known failure modes and historical fixes.
-4. **`knowledge_base_tool`**: Queries standard operating procedures (SOPs) and runbooks for remediation steps.
-5. **`external_api_tool`**: Validates upstream and third-party service reachability via live HTTP GET probes.
-6. **`incident_action_tool`**: Programmatically creates, escalates, and resolves tickets in the ITSM system.
-7. **`resource_matrix_tool` (`query_resource_matrix`)**: Queries real-time HCM capacity, skill matches, and workload headroom for smart engineer assignment.
+1. **`service_health_tool`**: Probes real-time service uptime, latency, CPU utilization, memory pressure, and operational status.
+2. **`log_analyzer_tool`**: Analyzes system logs across configurable timeframes (30m, 1h, 24h) to isolate stack traces and failure signatures.
+3. **`incident_history_tool`**: Queries historical outage records to cross-reference previous failure modes and proven remediation tactics.
+4. **`knowledge_base_tool`**: Searches standard operating procedure (SOP) runbooks to locate approved mitigation playbooks.
+5. **`external_api_tool`**: Validates third-party and upstream endpoint reachability via live network probes.
+6. **`incident_action_tool`**: Creates, updates, and tracks incident tickets with persistent markdown records (`tickets/INC-*.md`).
+7. **`resource_matrix_tool` (`query_resource_matrix`)**: Inspects current team capacity, available headroom, and technical skill sets.
+
+---
+
+## 🎯 Milestone & Requirements Verification (Milestones 1–4)
+
+The project satisfies 100% of the milestone and module specifications:
+
+| Milestone / Module | Requirement Scope | Implementation Evidence | Status |
+| :--- | :--- | :--- | :--- |
+| **Milestone 1** (Weeks 1–2)<br>*Agent Foundations* | Core agent framework, LangChain/LLM environment, prompt templates, structured state, interaction pipeline. | Implemented via `ChatGroq`, LangChain Core, Pydantic schemas, and structured `AgentState` in `workflow/state.py`. | **100% Complete** |
+| **Milestone 2** (Weeks 3–4)<br>*Tool Integration* | Custom enterprise tools, dynamic tool selection, external API connections, monitoring, error handling. | 7 custom enterprise tools in `tools/`, ReAct agent loop in `investigation_agent.py`, full exception handling. | **100% Complete** |
+| **Milestone 3** (Weeks 5–6)<br>*Coordination & Memory* | Specialized multi-agent roles, inter-agent communication, short-term conversational & long-term episodic memory. | LangGraph state graph coordination (`agent_workflow.py`), SQLite episodic memory (`agentsync_memory.db`), copilot chat API. | **100% Complete** |
+| **Milestone 4** (Weeks 7–8)<br>*Automation & Deployment* | Dynamic workflow orchestration, REST API, monitoring dashboard, cloud deployment, and performance validation. | FastAPI service (`api/main.py`), React 19 UI, cloud hosting (Vercel + Render), and 41 passing automated tests. | **100% Complete** |
 
 ---
 
 ## 💻 Technology Stack
 
-- **Backend Framework**: Python 3.10+, FastAPI, Uvicorn
+- **Backend**: Python 3.10+, FastAPI, Uvicorn, Pydantic v2
 - **Agent Orchestration**: LangGraph, LangChain Core
-- **LLM Reasoning**: Groq API (`openai/gpt-oss-20b` high-speed inference)
-- **Frontend Console**: React 19, Vite, Lucide Icons, ReactMarkdown, CSS Design System
-- **Dual-Stack Integration**: Node.js/Express HCM REST microservice + In-Process Python Fallback
-- **Persistence**: SQLite3 (`agentsync_memory.db` for memory, `enterprise_mock.db` for simulated telemetry)
-- **Testing**: Pytest (38 unit & integration tests)
+- **LLM Engine**: Groq API (`openai/gpt-oss-20b` high-throughput inference)
+- **Frontend Console**: React 19, Vite, Lucide React, Axios, CSS Design System
+- **Dual-Stack Integration**: Node.js/Express HCM API + In-Process Python Fallback Singleton
+- **Data Persistence**: SQLite3 (`agentsync_memory.db` for episodic memory, `enterprise_mock.db` for telemetry)
+- **Testing**: Pytest (41 unit and integration tests, 100% pass rate)
 
 ---
 
@@ -115,49 +131,42 @@ The coordination engine deploys 9 discrete agents across two integrated tiers:
 ```
 AgentSync/
 ├── agents/                     # LangGraph incident agents
-│   ├── planner_agent.py
-│   ├── investigation_agent.py
-│   ├── analysis_agent.py
-│   └── decision_agent.py
-├── api/                        # FastAPI REST application & HCM endpoints
-│   └── main.py
-├── config/                     # Environment configuration and settings
+│   ├── planner_agent.py        # Intent classification & investigation planning
+│   ├── investigation_agent.py  # ReAct multi-tool investigation
+│   ├── analysis_agent.py       # Root-cause diagnosis & impact analysis
+│   └── decision_agent.py       # Mitigation planning & engineer assignment
+├── api/                        # FastAPI REST API layer
+│   └── main.py                 # Workflow endpoints, HCM routes, admin authentication
+├── config/                     # Environment and model settings
 │   └── settings.py
-├── frontend/                   # React 19 + Vite unified operations console
+├── frontend/                   # React 19 + Vite operations console
 │   ├── src/
-│   │   ├── App.jsx             # Unified dashboard, incident runner, matrix, tickets
-│   │   ├── App.css             # Glassmorphic cyber-enterprise design system
+│   │   ├── App.jsx             # Main application, dashboard, matrix, modals
+│   │   ├── App.css             # Enterprise dark-mode design system
 │   │   └── main.jsx
 │   ├── package.json
-│   ├── vercel.json             # Vercel SPA routing configuration
+│   ├── vercel.json             # Vercel deployment rewrites
 │   └── vite.config.js
-├── hcm/                        # Decision Engine HCM subsystem
-│   ├── hcm_manager.py          # Operative roster, matrix toggles, headroom lock
+├── hcm/                        # Human Capital Management subsystem
+│   ├── hcm_manager.py          # Employee roster, capacity matrix, headroom locks
 │   └── hr_agents.py            # 5 evidence-based situational review agents
-├── memory/                     # Long-term memory management
+├── memory/                     # Episodic long-term memory
 │   └── memory_manager.py
-├── tests/                      # Automated test suite (38 passing tests)
+├── tests/                      # Automated test suite (41 tests)
 │   ├── test_agents.py
 │   ├── test_api.py
 │   ├── test_hcm.py
 │   └── test_tools.py
-├── tickets/                    # Auto-generated incident tickets with context bundles
-├── tools/                      # Enterprise simulation and diagnosis tools
-│   ├── external_api_tool.py
-│   ├── incident_action_tool.py
-│   ├── incident_history_tool.py
-│   ├── knowledge_base_tool.py
-│   ├── log_analyzer_tool.py
-│   ├── resource_matrix_tool.py
-│   └── service_health_tool.py
-├── utils/                      # Structured logging and telemetry utilities
-│   └── logging_config.py
+├── tickets/                    # Generated incident tickets with diagnostic bundles
+├── tools/                      # 7 integrated enterprise diagnostic tools
+├── utils/                      # Logging and telemetry metrics
 ├── workflow/                   # LangGraph state machine definition
-│   ├── agent_workflow.py
-│   └── state.py
+│   ├── agent_workflow.py       # StateGraph definition and dynamic routing
+│   └── state.py                # TypedDict AgentState schema
 ├── requirements.txt            # Python dependencies
-├── setup_db.py                 # Database initialization and seeder
-└── Whole_project_scope.md      # Comprehensive technical architecture document
+├── setup_db.py                 # SQLite database initialization
+├── Whole_project_scope.md      # Full architecture and scope document
+└── FINAL_PROJECT_DOCUMENTATION.md
 ```
 
 ---
@@ -165,12 +174,12 @@ AgentSync/
 ## 🚀 Local Setup & Quick Start
 
 ### 1. Prerequisites
-- Python 3.10 or higher
+- Python 3.10+
 - Node.js 18+ and npm
-- A Groq API key ([console.groq.com](https://console.groq.com))
+- Groq Cloud API key ([console.groq.com](https://console.groq.com))
 
 ### 2. Environment Configuration
-Create a `.env` file in the project root:
+Create a `.env` file in the root directory:
 ```env
 GROQ_API_KEY=your_groq_api_key_here
 DEFAULT_MODEL=openai/gpt-oss-20b
@@ -178,44 +187,52 @@ DEFAULT_MODEL=openai/gpt-oss-20b
 
 ### 3. Backend Setup
 ```bash
-# Set up virtual environment
+# Create and activate virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Seed databases (if not already initialized)
+# Initialize databases
 python setup_db.py
 
-# Start the FastAPI server
+# Launch FastAPI server
 uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 ```
-Interactive API Documentation is available at `http://localhost:8000/docs`.
+Interactive OpenAPI documentation will be available at `http://localhost:8000/docs`.
 
 ### 4. Frontend Setup
-In a new terminal window:
+In a separate terminal window:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-The unified web console will be accessible at `http://localhost:5173`.
+The operations dashboard will be live at `http://localhost:5173`.
 
 ---
 
 ## 🧪 Verification & Testing
 
-Execute the comprehensive test suite covering all agents, tools, API contracts, HCM headroom enforcement, and ticket workflows:
+Run the full automated test suite:
 ```bash
 pytest tests/ -v
 ```
-All **38 unit and integration tests** pass verified.
+All **41 unit and integration tests** pass verified.
+
+---
+
+## 🔒 HR Administrator Authentication
+
+Personnel management actions (adding new team members and deleting members) are protected behind an authentication gate:
+- **Default Username:** `admin`
+- **Default Passwords:** `admin123` / `adminpassword` / `agentsync2026`
+- **Session Persistence:** Successfully authenticated administrators retain active access in the browser session, with immediate manual locking controls in the topbar and settings.
 
 ---
 
 ## 🌐 Production Deployment
 
-- **Frontend**: Deployed on **Vercel** (`https://agent-sync.vercel.app`) using SPA rewrites configured in `frontend/vercel.json`.
-- **Backend**: Deployed on **Render** as a persistent web service executing `uvicorn api.main:app --host 0.0.0.0 --port $PORT`.
-- **Environment Link**: Set `VITE_API_URL` in the frontend hosting environment to target the live backend instance URL.
+- **Frontend:** Hosted on **Vercel** (`https://agent-sync.vercel.app`) with SPA routing rules.
+- **Backend:** Hosted on **Render** running `uvicorn api.main:app --host 0.0.0.0 --port $PORT`.

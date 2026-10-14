@@ -85,3 +85,32 @@ def test_workflow_execution(mock_planner, mock_investigation, mock_analysis, moc
     assert mock_investigation.called
     assert mock_analysis.called
     assert mock_decision.called
+
+
+@patch("workflow.agent_workflow.run_decision")
+@patch("workflow.agent_workflow.run_analysis")
+@patch("workflow.agent_workflow.run_investigation")
+@patch("workflow.agent_workflow.run_planner")
+def test_workflow_execution_general_query(mock_planner, mock_investigation, mock_analysis, mock_decision):
+    """Test that general queries route directly to END without invoking investigation, analysis, or assigning engineers."""
+    def mock_planner_side_effect(state):
+        state["is_general_query"] = True
+        state["workflow_status"] = "Completed (Informational)"
+        state["decision"] = "The capital of India is New Delhi."
+        state["assigned_engineer"] = None
+        return state
+
+    mock_planner.side_effect = mock_planner_side_effect
+
+    final_state = run_agent_workflow("capital of india")
+
+    assert final_state["workflow_status"] == "Completed (Informational)"
+    assert final_state["is_general_query"] is True
+    assert "New Delhi" in final_state["decision"]
+    assert final_state["assigned_engineer"] is None
+    # Verify that downstream nodes were short-circuited
+    assert mock_planner.called
+    assert not mock_investigation.called
+    assert not mock_analysis.called
+    assert not mock_decision.called
+

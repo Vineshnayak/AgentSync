@@ -25,6 +25,13 @@ def evaluate_risk(state: AgentState) -> AgentState:
     logger.info(f"Risk Evaluation complete: {state['workflow_status']}")
     return state
 
+def route_after_planner(state: AgentState):
+    """Routes directly to END if request was an informational query, avoiding unnecessary triage or engineer allocation."""
+    if state.get("is_general_query") or state.get("workflow_status") == "Completed (Informational)":
+        logger.info("General informational query detected. Skipping investigation and routing directly to END.")
+        return END
+    return "investigation"
+
 def route_after_risk(state: AgentState):
     status = state.get("workflow_status", "")
     if "High Risk" in status:
@@ -48,7 +55,14 @@ def build_workflow():
     
     # Define edges
     workflow.set_entry_point("planner")
-    workflow.add_edge("planner", "investigation")
+    workflow.add_conditional_edges(
+        "planner",
+        route_after_planner,
+        {
+            END: END,
+            "investigation": "investigation"
+        }
+    )
     workflow.add_edge("investigation", "analysis")
     workflow.add_edge("analysis", "risk_evaluation")
     
@@ -81,7 +95,9 @@ def run_agent_workflow(user_request: str) -> AgentState:
         execution_metadata={},
         assigned_engineer=None,
         context_bundle=None,
-        wellbeing_alert=None
+        wellbeing_alert=None,
+        is_general_query=False,
+        severity="P1"
     )
     
     app = build_workflow()

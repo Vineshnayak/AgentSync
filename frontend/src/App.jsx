@@ -866,15 +866,59 @@ function App() {
                           </div>
                         </div>
                         <div className="metric-box">
-                          <div className="metric-icon-wrap" style={{ background: 'rgba(163,113,247,0.1)', border: '1px solid rgba(163,113,247,0.2)' }}>
-                            <Zap size={18} color="#a371f7" />
+                          <div className="metric-icon-wrap" style={{ 
+                            background: (result.is_general_query || !result.assigned_engineer) ? 'rgba(56, 189, 248, 0.1)' : 'rgba(163,113,247,0.1)', 
+                            border: (result.is_general_query || !result.assigned_engineer) ? '1px solid rgba(56, 189, 248, 0.2)' : '1px solid rgba(163,113,247,0.2)' 
+                          }}>
+                            <Zap size={18} color={(result.is_general_query || !result.assigned_engineer) ? '#38bdf8' : '#a371f7'} />
                           </div>
                           <div>
-                            <div className="metric-val" style={{ color: '#a371f7' }}>P1 Priority</div>
+                            <div className="metric-val" style={{ color: (result.is_general_query || !result.assigned_engineer) ? '#38bdf8' : '#a371f7' }}>
+                              {(result.is_general_query || !result.assigned_engineer) ? 'Informational' : (result.severity || 'P1 Priority')}
+                            </div>
                             <div className="metric-label">Severity Tier</div>
                           </div>
                         </div>
                       </div>
+
+                      {/* ── Informational Query Response Card (Zero Workload Consumed) ── */}
+                      {(result.is_general_query || !result.assigned_engineer) && (
+                        <div className="card" style={{ 
+                          marginTop: 16, 
+                          border: '1px solid rgba(56, 189, 248, 0.3)', 
+                          background: 'linear-gradient(180deg, rgba(56, 189, 248, 0.06) 0%, rgba(15, 23, 42, 0.6) 100%)' 
+                        }}>
+                          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#38bdf8', fontWeight: 600 }}>
+                              <HelpCircle size={18} />
+                              <span>Informational Query Response</span>
+                            </div>
+                            <span className="badge" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                              NO OUTAGE DETECTED • 0% WORKLOAD IMPACT
+                            </span>
+                          </div>
+                          <div className="card-body">
+                            <div style={{ fontSize: 15, lineHeight: 1.6, color: '#f1f5f9', whiteSpace: 'pre-wrap' }}>
+                              {result.decision?.replace(/\n\n\*\(Note:[\s\S]*?\)\*/, '') || result.decision}
+                            </div>
+                            <div style={{ 
+                              marginTop: 16, 
+                              padding: '10px 14px', 
+                              borderRadius: 6, 
+                              background: 'rgba(255,255,255,0.03)', 
+                              border: '1px solid rgba(255,255,255,0.06)', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 10, 
+                              fontSize: 12, 
+                              color: 'var(--text-muted)' 
+                            }}>
+                              <ShieldCheck size={16} color="#3fb950" />
+                              <span><strong>Team Headroom Preserved:</strong> This request was classified as general knowledge/informational. No service outage was declared, and no engineering personnel were dispatched, ensuring team capacity remains nominal.</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* ── Smart Resource Assignment & Contextual Handoff Card ── */}
                       {result.assigned_engineer && (
@@ -898,7 +942,6 @@ function App() {
                             <div className="assigned-engineer-info">
                               <h4>
                                 {result.assigned_engineer.name}
-                                <span className="op-callsign" style={{ marginLeft: 8 }}>{result.assigned_engineer.callsign}</span>
                               </h4>
                               <p>{result.assigned_engineer.role}</p>
                               <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
@@ -1436,8 +1479,8 @@ function App() {
                             <div key={dis.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, background: 'rgba(0,0,0,0.2)', borderRadius: 6 }}>
                               <img src={dis.avatar} alt={dis.name} style={{ width: 32, height: 32, borderRadius: '50%' }} />
                               <div>
-                                <strong style={{ fontSize: 13, color: '#fff' }}>{dis.name} ({dis.callsign})</strong>
-                                <div style={{ fontSize: 11, color: '#f85149' }}>{dis.allocatedCapacity}% Load (Exceeds Safety Threshold)</div>
+                                <strong style={{ fontSize: 13, color: '#fff' }}>{dis.name}</strong>
+                                <div style={{ fontSize: 11, color: '#f85149' }}>{dis.role} — {dis.allocatedCapacity}% Load (Overload Cap)</div>
                               </div>
                             </div>
                           ))}
@@ -1464,11 +1507,11 @@ function App() {
               <div className="wellbeing-emp-selector">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <User size={16} color="#818cf8" />
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>Operative:</span>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>Team Member:</span>
                   <select value={selectedHrOpId} onChange={(e) => setSelectedHrOpId(e.target.value)}>
                     {operatives.map(o => (
                       <option key={o.id} value={o.id}>
-                        {o.name} ({o.callsign}) — {o.allocatedCapacity}% Load
+                        {o.name} ({o.role}) — {o.allocatedCapacity}% Load
                       </option>
                     ))}
                   </select>
@@ -1952,7 +1995,7 @@ function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <HeartHandshake size={20} color="#818cf8" />
                 <h3 style={{ margin: 0 }}>5-Agent HR Situation Review — {modalOperative.name}</h3>
-                <span className="op-callsign">{modalOperative.callsign}</span>
+                <span className="dept-tag">{modalOperative.role}</span>
               </div>
               <button className="btn-ghost" style={{ padding: '4px 8px' }} onClick={() => setHrModalOpen(false)}>✕</button>
             </div>

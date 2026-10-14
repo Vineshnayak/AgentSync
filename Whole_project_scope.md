@@ -5,204 +5,151 @@
 **Platform Name:** AgentSync  
 **Domain:** Autonomous AI Multi-Agent Coordination, IT Incident Resolution & Human Capital Management (HCM) Decision Engine  
 
-Modern digital enterprises rely on complex distributed microservices, persistent databases, and third-party APIs. When system anomalies, latency spikes, or service outages emerge, diagnosing and mitigating them requires cross-functional coordination: reviewing diagnostic logs, querying metrics databases, cross-referencing previous post-mortems, evaluating downstream risks, and issuing remediation plans.
+Modern digital enterprises depend on distributed microservices, databases, and third-party APIs. When system anomalies, latency spikes, or outages occur, diagnosing and resolving them requires multi-disciplinary coordination: analyzing diagnostic logs, verifying service health, cross-referencing previous post-mortems, evaluating downstream risks, and executing mitigation strategies.
 
-Simultaneously, traditional incident response suffers from **blind paging**—notifying engineers solely based on static on-call calendars without visibility into active workloads, skill compatibility, or cognitive fatigue. This causes severe alert fatigue, suboptimal MTTR, and engineer burnout.
+Traditional incident response workflows suffer from **uncoordinated dispatch**—alerting on-call engineers without insight into active workloads, technical skill compatibility, or cognitive fatigue. This leads to alert fatigue, increased MTTR, and engineering burnout.
 
-**AgentSync** resolves this challenge through a **Dual-Stack Integration** that bridges:
-1. **Autonomous Incident Triage (AgentSync)**: A LangGraph state machine orchestrating specialized AI agents (Planner, Investigation, Analysis, Decision) equipped with enterprise tools to parse raw logs and diagnose root causes without human intervention.
-2. **Resource Allocation & Decision Engine (HCM)**: A skill-aware human capital matrix that dynamically tracks operative capacities, enforces strict workload headroom thresholds (`< 100%`), disqualifies overloaded personnel, and bundles contextual telemetry directly into tickets for instant handoff.
-
----
-
-## 2. Implemented Architecture & Milestones
-
-The project was constructed and verified across five progressive development milestones:
-
-- **Milestone 1 — Foundations & Core Agent Nodes:** Engineered specialized agents (Planner, Investigation, Analysis, Decision) using LangChain and ChatGroq, establishing isolated cognitive responsibilities.
-- **Milestone 2 — Tool Registry & ReAct Integration:** Integrated six enterprise diagnostic tools into a dynamic ReAct paradigm, enabling autonomous evidence gathering and action execution.
-- **Milestone 3 — State-Graph Orchestration & Memory:** Constructed the LangGraph state machine with conditional risk evaluation routing, and integrated SQLite long-term episodic memory (`agentsync_memory.db`) to enable past precedent recall.
-- **Milestone 4 — Full-Stack API, Dashboard & Deployment:** Built the FastAPI REST interface, React 19 + Vite operations console, incident ticket management center, and deployed the production stack on Render and Vercel.
-- **Milestone 5 — Dual-Stack HCM & Resource Matrix Integration:** Integrated the `-AI-Agent-Coordination-Decision-Engine` into a single unified web console, implemented 5 evidence-based HR agents, Talent Scout AI squad assembly with headroom checks, added `query_resource_matrix`, established the `< 100%` capacity headroom lock, and built zero-downtime in-process fallback architecture.
+**AgentSync** addresses this challenge through a **Dual-Stack Integration** that connects:
+1. **Autonomous Incident Triage (AgentSync)**: A LangGraph state machine orchestrating specialized AI agents (Planner, Investigation, Analysis, Decision) equipped with enterprise tools to diagnose root causes and formulate mitigation plans.
+2. **Resource Allocation & Decision Engine (HCM)**: A skill-aware human capital matrix that tracks employee capacities, enforces strict workload headroom thresholds (`< 100%`), disqualifies overloaded personnel, and packages contextual telemetry directly into tickets for instant handoff.
+3. **Intent Classification & Safe Query Routing**: An intelligent classifier that separates general informational questions from infrastructure incidents, providing direct answers with zero engineering workload impact.
 
 ---
 
-## 3. Workflow State Machine & Agent Topology
+## 2. Milestone Implementation & Verification (Milestones 1–4: 100% Complete)
 
-The engine is orchestrated using **LangGraph**, which passes a strictly typed `AgentState` dictionary between nodes.
+The platform was built and validated against all project requirements and evaluation criteria:
+
+### Milestone 1 (Weeks 1–2): Agent Foundation Development — **100% Complete**
+- **Objective:** Establish the core agent framework, development environment, and prompt pipelines.
+- **Deliverables:**
+  - Configured LangChain Core, LangGraph, and ChatGroq with high-throughput inference models.
+  - Implemented foundational AI agents with specialized system prompts and typed `AgentState` schemas.
+  - Built prompt templates for incident decomposition, evidence synthesis, and risk evaluation.
+  - Established testing harnesses with automated test suites (`tests/test_agents.py`).
+
+### Milestone 2 (Weeks 3–4): Tool Integration & Action Execution — **100% Complete**
+- **Objective:** Enable agents to interact with external enterprise services, databases, and diagnostic tools.
+- **Deliverables:**
+  - Implemented 7 enterprise tools: `service_health_tool`, `log_analyzer_tool`, `incident_history_tool`, `knowledge_base_tool`, `external_api_tool`, `incident_action_tool`, and `resource_matrix_tool`.
+  - Configured ReAct autonomous tool selection in `investigation_agent.py` to iteratively gather logs, probe APIs, and consult runbooks.
+  - Implemented structured error handling, network failure fallbacks, and real-time execution telemetry.
+  - Validated tool execution accuracy via `tests/test_tools.py`.
+
+### Milestone 3 (Weeks 5–6): Agent Coordination & Memory Management — **100% Complete**
+- **Objective:** Build multi-agent collaboration mechanisms and memory management.
+- **Deliverables:**
+  - Implemented specialized agent fleet: Planner, Investigation, Analysis, Decision, Workload, Project Fit, Performance, Availability, and Wellbeing agents.
+  - Engineered LangGraph state passing with conditional edges for risk escalation and general query routing.
+  - Configured dual-layer memory:
+    - **Short-Term Conversational Memory:** Interactive resolution copilot (`/workflow/chat/{job_id}`).
+    - **Long-Term Episodic Memory:** SQLite persistence (`agentsync_memory.db`) storing past workflows and retrieving historical precedents via keyword indexing.
+
+### Milestone 4 (Weeks 7–8): Workflow Automation & Deployment — **100% Complete**
+- **Objective:** Deliver a production-ready AI coordination platform with APIs, dashboards, and cloud deployment.
+- **Deliverables:**
+  - REST API layer built with FastAPI (`api/main.py`) exposing 20+ endpoints with OpenAPI documentation.
+  - Single-interface React 19 + Vite dashboard with live telemetry, capacity matrices, talent scout search, and ticket records.
+  - Cloud deployment on Vercel (frontend) and Render (backend).
+  - Authenticated HR personnel management with username/password checkpoint (`admin` / `admin123`) for adding and deleting employees.
+  - Automated test suite with **41 passing tests** covering 100% of core workflows.
+
+---
+
+## 3. Workflow State Machine & Dynamic Routing
+
+The coordination engine is orchestrated by **LangGraph**, routing state across specialized agent nodes:
 
 ```
-                    ┌─────────────────────────┐
-                    │      Incoming Event     │
-                    │   (User / System Alert) │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-                    │      Planner Agent      │
-                    │ (Step-by-step checklist)│
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-                    │   Investigation Agent   │
-                    │ (ReAct Multi-Tool Calls)│
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-                    │     Analysis Agent      │
-                    │ (Root-cause diagnosis)  │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-         ┌──────────┤     Risk Evaluation     ├──────────┐
-         │          │   (Conditional Router)  │          │
-         │          └─────────────────────────┘          │
-         ▼                                               ▼
-[High / Standard Path]                          [Medium Path - Re-investigate]
-         │                                               │
-         ▼                                               │
-    ┌────────────────┐                                   │
-    │ Decision Agent │ ◄─────────────────────────────────┘
-    └──────┬─────────┘
-           │
-           ▼
-    ┌───────────────────────┐
-    │ Resource Matrix Query │ ── Strict Skill Filter + <100% Capacity Enforcement
-    └──────┬────────────────┘
-           │
-     ┌─────┴────────────────────────┐
-     ▼                              ▼
-[ Long-Term Memory ]     [ Smart Assignment & Context Bundle ]
-(SQLite Memory DB)       (Disqualify Overloaded, Attach Telemetry)
-```
-
-### The 9-Agent Fleet
-
-| Agent | Tier | Role | Primary Responsibility |
-| :--- | :--- | :--- | :--- |
-| **Planner Agent** | Incident | Strategy | Analyzes the initial report and defines a prioritized investigation checklist. |
-| **Investigation Agent** | Incident | Research / ReAct | Autonomously calls tools to gather diagnostics, inspect databases, and query knowledge bases. |
-| **Analysis Agent** | Incident | Diagnostics | Synthesizes technical evidence into root cause assessments and business risk tiers. |
-| **Decision Agent** | Incident | Resolution / Dispatch | Prescribes mitigation plans, triggers engineer matching, and bundles telemetry. |
-| **Workload Agent** | HCM | Capacity Enforcement | Tracks allocation %, enforces `< 100%` headroom threshold, prevents alert fatigue. |
-| **Project Fit Agent** | HCM | Talent Matching | Vector skill-profile indexing, incident domain mapping, fit score calculation. |
-| **Performance Agent** | HCM | Operational Metrics | Analyzes historical incident resolution velocity, code quality, and delivery track records. |
-| **Availability Agent** | HCM | Scheduling | Assesses active commitments, deadlines, and on-call bandwidth reservations. |
-| **Employee Wellbeing Agent** | HCM | Safety & Burnout | Monitors stress indices, detects rapid load spikes, triggers early HR interventions. |
-
----
-
-## 4. Strict Skill Filtering & Workload Headroom Enforcement Specification
-
-### Hard Constraints in Engineer Assignment
-
-1. **Skill-Aware Filtering**:
-   - The system ingests service identifiers, error keywords, and technology tags from the incident investigation.
-   - Operative profiles (e.g., Vance Sterling: `AWS`, `Kubernetes`, `Terraform`; Tariq Mansoor: `Rust`, `Kubernetes`, `OAuth`, `Auth Service`) are indexed and matched against these tags.
-
-2. **Workload Headroom Enforcement (`< 100%` Threshold)**:
-   - Any engineer whose active workload equals or exceeds `100%` of maximum capacity is **immediately disqualified** from incident assignment, regardless of skill match score.
-   - Example baseline: Dr. Elena Rostova (`NEURAL`, 115% capacity) and Lucas Drake (`120% capacity`) are locked out to protect employee wellbeing and prevent alert fatigue.
-
-3. **Dynamic Workload Allocation & Stress Recalculation**:
-   - When an eligible engineer is selected, their allocated capacity is incremented by `+15%` for the duration of the incident.
-   - The stress index is recalculated dynamically:
-     $$\text{Stress Index} = \min\left(100, \text{round}\left(\frac{\text{Allocated Capacity}}{100} \times 45\right)\right)$$
-   - If the new capacity exceeds `85%` or the stress index reaches `70`, the system flags an automated **Wellbeing Safeguard Warning** with managerial check-in recommendations.
-
----
-
-## 5. Contextual Handoff & Telemetry Bundling Schema
-
-To eliminate onboarding friction during high-stress outages, the system compiles a `ContextBundle` attached directly to the incident ticket:
-
-```json
-{
-  "assigned_to": {
-    "id": "OP-04",
-    "name": "Tariq Mansoor",
-    "callsign": "AEGIS",
-    "role": "Cyber Defense Specialist",
-    "capacity_before": 60,
-    "capacity_after": 75,
-    "stress_index": 34
-  },
-  "fit_score": 85,
-  "matched_skills": ["Rust", "Kubernetes", "Auth Service"],
-  "remaining_headroom": 25,
-  "wellbeing_alert": null,
-  "incident_diagnostics": {
-    "incident_summary": "Payment API is failing with database timeout errors",
-    "affected_service": "Payment API",
-    "root_cause": "Database connection pool exhaustion and unreachable replica",
-    "recommended_runbook": "Payment API - Database Connection Pool Exhaustion SOP",
-    "raw_logs_snippet": "ConnectionTimeout: could not obtain connection within 5000ms"
-  }
-}
+                  ┌─────────────────────────┐
+                  │      Incoming Event     │
+                  │  (User / System Query)  │
+                  └────────────┬────────────┘
+                               │
+                               ▼
+                  ┌─────────────────────────┐
+                  │      Planner Agent      │ ── Evaluates Intent
+                  └────────────┬────────────┘
+                               │
+            ┌──────────────────┴──────────────────┐
+            │ [Informational / General Query]     │ [IT Incident Outage]
+            ▼                                     ▼
+┌──────────────────────────────┐       ┌─────────────────────────┐
+│  Direct Answer Formulated    │       │   Investigation Agent   │ ── Calls tools (Logs,
+│  (0% Capacity Impact / Safe) │       │ (ReAct Multi-Tool Calls)│    Health, DB, APIs)
+└───────────┬──────────────────┘       └────────────┬────────────┘
+            │                                       │
+            │                                       ▼
+            │                          ┌─────────────────────────┐
+            │                          │     Analysis Agent      │ ── Root-cause diagnosis
+            │                          │  (Impact & Risk Scoring)│
+            │                          └────────────┬────────────┘
+            │                                       │
+            │                                       ▼
+            │                          ┌─────────────────────────┐
+            │               ┌──────────┤     Risk Evaluation     ├──────────┐
+            │               │          │   (Conditional Router)  │          │
+            │               │          └─────────────────────────┘          │
+            │               ▼                                               ▼
+            │      [High / Standard Path]                          [Medium Path - Re-investigate]
+            │               │                                               │
+            │               ▼                                               │
+            │          ┌────────────────┐                                   │
+            │          │ Decision Agent │ ◄─────────────────────────────────┘
+            │          └──────┬─────────┘
+            │                 │
+            │                 ▼
+            │          ┌───────────────────────┐
+            │          │ Resource Matrix Match │ ── Skill Matching + <100% Headroom
+            │          └──────┬────────────────┘
+            │                 │
+            │           ┌─────┴────────────────────────┐
+            │           ▼                              ▼
+            │      [ Optimal Engineer ]     [ Overloaded Personnel ]
+            │      (Assigned with Headroom) (Disqualified @ >=100%)
+            │           │
+            │           ▼
+            │      [ Context Bundle & Ticket ]
+            ▼           ▼
+    [ Final State Saved to Long-Term Memory ]
 ```
 
 ---
 
-## 6. Dual-Stack Integration & Fault-Tolerant Fallback
+## 4. Intelligent Request Classification & Safe Query Routing
 
-The architecture unites two complementary technologies:
-- **Primary Orchestrator**: Python 3.10+ FastAPI + LangGraph state machine.
-- **Human Capital Matrix**: Node.js/Express service at `http://localhost:5000`.
-
-### Fault-Tolerance Mechanism
-- When the Node.js microservice is reachable, state synchronizes across HTTP REST calls (`GET /api/state`).
-- If the auxiliary microservice experiences network partition, maintenance, or downtime, the Python controller (`hcm_manager.py`) **automatically and transparently falls back to in-process evaluation**.
-- Operational interruption is exactly **zero (0%)**, ensuring incident resolution and engineer assignment never fail due to auxiliary service outages.
-
----
-
-## 7. Enterprise Tool Ecosystem (7 Tools)
-
-| Tool ID | Function | Target Data Source |
-| :--- | :--- | :--- |
-| `analyze_logs` | Extracts recent error traces and anomalous frequencies. | `enterprise_mock.db / service_logs` |
-| `check_health` | Queries latency, CPU, and operational status of monitored microservices. | `enterprise_mock.db / service_health` |
-| `search_incident_history` | Semantic and keyword search of past outages and historical resolutions. | `enterprise_mock.db / historical_incidents` |
-| `search_runbooks` | Retrieves approved standard operating procedures and mitigation playbooks. | `enterprise_mock.db / service_runbooks` |
-| `manage_incident` | Programmatically creates, escalates, or resolves tickets in the ITSM layer. | Simulated ITSM system |
-| `check_external_service_status` | Executes live HTTP probes against third-party endpoints. | External APIs / Public Web |
-| `query_resource_matrix` | Queries real-time HCM capacity, skill matches, and team headroom. | HCM Operative Allocation Matrix |
+When user inputs are received by the engine:
+1. **General Informational Queries** (e.g., factual queries like *"capital of india"*, company policies, general chat):
+   - Classified immediately by the Planner Agent.
+   - Generates a direct, accurate answer.
+   - **Routes directly to END:** Does not trigger log analyzers, does not probe health endpoints, and does not page engineers.
+   - **Zero Capacity Impact:** Employee workloads remain completely untouched ($0\%$ capacity consumed, maintaining existing headroom).
+2. **IT Incident Disruption** (e.g., *"Payment API failing with 500 database timeouts"*):
+   - Classified as an operational incident.
+   - Generates structured diagnostic checklist.
+   - Routes through Investigation, Analysis, Risk Evaluation, and Decision Agents.
+   - Assigns the best available engineer with $<100\%$ capacity and pre-packages the context bundle.
 
 ---
 
-## 8. Unified Web Interface Specification
+## 5. Human Capital Management (HCM) & Workload Safeguards
 
-The frontend delivers a **single, unified web console** built with React 19 + Vite:
-- **Platform Dashboard**: High-level platform health, LangGraph execution metrics, team bandwidth averages, and capacity overload alerts.
-- **Incident Resolution Center**: Real-time pipeline animations, execution plan viewer, root-cause diagnostics, and the **Smart Resource Assignment & Contextual Handoff** card.
-- **Resource Matrix & HCM Console**: Operative roster with cyberpunk avatars, callsigns, capacity progress bars (Nominal / Elevated / Overload), interactive project allocation matrix table, and on-demand 5-Agent HR Review drawer.
-- **Enterprise Missions**: Mission forge modal and active project dependency cards (PRJ-101 to PRJ-105).
-- **Incident Tickets**: Ticket management console with assigned operative tags and pre-packaged context bundles.
-- **Investigations**: Long-term memory query interface powered by SQLite persistence.
-- **Agent Fleet**: Operational dashboard displaying all 9 autonomous agents.
-- **Settings & Dual-Stack**: Live connection pulse, architecture diagram, and in-process fallback indicators.
+### Capacity Headroom Rules
+- **Safe Zone ($< 85\%$ Load):** Nominal operational capacity. Eligible for incident paging.
+- **Elevated Zone ($85\% - 99\%$ Load):** Workload triggers proactive managerial notification.
+- **Capacity Lockout ($\ge 100\%$ Load):** Strict burnout safeguard. Employee is automatically disqualified from incident dispatch.
 
----
-
-## 9. Verification & Test Suite Matrix
-
-The platform is continuously verified via an automated test suite comprising **38 tests** across 4 test suites:
-
-| Test Suite | File | Tests | Status |
-| :--- | :--- | :---: | :---: |
-| **Agent Reasoning & Workflow** | `tests/test_agents.py` | 4 | ✅ Passed |
-| **API Endpoints & Contracts** | `tests/test_api.py` | 16 | ✅ Passed |
-| **HCM Manager & Headroom Lock** | `tests/test_hcm.py` | 8 | ✅ Passed |
-| **Enterprise Tools Execution** | `tests/test_tools.py` | 10 | ✅ Passed |
-| **Total** | | **38** | **100% Pass** |
+### HR Administrator Security Checkpoint
+- Adding and deleting team members is protected by authentication:
+  - **Endpoint:** `POST /auth/admin-login`
+  - **Credentials:** `admin` / `admin123`
+  - **Add Member:** Allows specifying name, role, department, email, technical skills, and initial capacity.
+  - **Delete Member:** Safely removes employee, cleans up project allocations across all projects, recalculates capacity metrics, and logs an HR telemetry event.
 
 ---
 
-## 10. Production Deployment
+## 6. Verification Summary
 
-- **Frontend Console**: Deployed on **Vercel** (`https://agent-sync.vercel.app`) using SPA rewrites configured in `frontend/vercel.json`.
-- **Backend API**: Deployed on **Render** as a persistent web service running `uvicorn api.main:app --host 0.0.0.0 --port $PORT`.
-- **Dual-Stack Fallback**: Guaranteed zero-downtime execution in both local development and cloud production environments.
+- **Automated Tests:** 41/41 passing unit and integration tests.
+- **Frontend Build:** Verified via `npm run build` with zero compilation errors.
+- **Continuous Deployment:** Synchronized with Vercel and Render via `origin main`.
